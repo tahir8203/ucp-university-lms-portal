@@ -1,0 +1,19 @@
+{
+  "name": "University LMS",
+  "short_name": "LMS",
+  "description": "Mobile learning portal for admins, teachers, and students.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f6f8fc",
+  "theme_color": "#0d5ea8",
+  "icons": [
+    {
+      "src": "./assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
