@@ -96,144 +96,197 @@
       </div>
 
       <div class="tab-pane fade" id="teacher-quizzes-pane" role="tabpanel" aria-labelledby="teacher-quizzes-tab" tabindex="0">
-        <section class="card">
-      <h2>Quizzes (1-4 per class)</h2>
-      <p class="meta">Workflow: select class/quiz -> add/edit questions -> auto-save draft -> publish -> start/stop attempts.</p>
-      <div class="quiz-shell">
-        <div class="quiz-left card">
-          <h3>Quiz Setup</h3>
-          <div id="quizBuilderStats" class="quiz-stats"></div>
-          <form id="quizForm" class="grid">
-            <select id="quizClassId" required></select>
-            <select id="quizNumber" required>
-              <option value="">Quiz Number</option>
-              <option value="1">Quiz 1</option>
-              <option value="2">Quiz 2</option>
-              <option value="3">Quiz 3</option>
-              <option value="4">Quiz 4</option>
-            </select>
-            <input id="quizTitle" placeholder="Quiz title" required />
-            <select id="currentQuestionMode">
-              <option value="mcq">Multiple Choice</option>
-              <option value="theory">Short Question</option>
-            </select>
-            <input id="quizDuration" type="number" min="1" placeholder="Duration (minutes)" required />
-            <input id="quizAttemptLimit" type="number" min="1" value="1" placeholder="Attempt limit per student" required />
-            <label><input id="quizAntiCheat" type="checkbox" checked /> Enable anti-cheat (tab switch/copy protection)</label>
-            <button id="addQuestionBtn" type="button">Add Question</button>
-          </form>
-          <p id="draftStatus" class="message quiz-draft-status"></p>
-          <div class="inline-actions quiz-primary-actions">
-            <button id="cancelQuestionEditBtn" type="button">Cancel Question Edit</button>
-            <button id="saveDraftBtn" type="button">Save Draft</button>
-            <button id="loadDraftBtn" type="button">Load Draft</button>
-          </div>
-          <div id="questionBuilder" class="builder"></div>
-          <details open>
-            <summary><strong>Import / Paste Questions</strong></summary>
-            <form id="quizImportForm" class="grid two">
-              <select id="quizImportMode">
-                <option value="mixed">Mixed (MCQ + Theory)</option>
-                <option value="mcq">MCQ only</option>
-                <option value="theory">Theory only</option>
-              </select>
-              <input id="quizImportFile" type="file" accept=".csv,.txt" />
-              <button type="submit">Bulk Import Questions (CSV)</button>
-            </form>
-            <p class="meta">CSV headers: <code>type,prompt,option1,option2,option3,option4,correctIndex(1-4),theoryAnswer</code></p>
-            <div class="inline-actions template-downloads">
-              <a class="button-link" href="./templates/quiz-mcq-template.csv" download>Download MCQ CSV</a>
-              <a class="button-link" href="./templates/quiz-theory-template.csv" download>Download Theory CSV</a>
-              <a class="button-link" href="./templates/quiz-mixed-template.csv" download>Download Mixed CSV</a>
+        <section class="card quiz-portal">
+      <div class="quiz-portal-head">
+        <h2>Quiz Portal</h2>
+        <p class="meta">Workflow: select class/quiz -> add/edit questions -> auto-save draft -> publish -> start/stop attempts.</p>
+      </div>
+
+      <ul class="nav nav-pills quiz-subtabs" id="quizSubTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="quiz-builder-tab" data-bs-toggle="tab" data-bs-target="#quiz-builder-pane" type="button" role="tab" aria-controls="quiz-builder-pane" aria-selected="true">🛠️ Build &amp; Preview</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="quiz-library-tab" data-bs-toggle="tab" data-bs-target="#quiz-library-pane" type="button" role="tab" aria-controls="quiz-library-pane" aria-selected="false">📚 Drafts &amp; Quizzes</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="quiz-analytics-tab" data-bs-toggle="tab" data-bs-target="#quiz-analytics-pane" type="button" role="tab" aria-controls="quiz-analytics-pane" aria-selected="false">📊 Analytics</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="quiz-reviews-tab" data-bs-toggle="tab" data-bs-target="#quiz-reviews-pane" type="button" role="tab" aria-controls="quiz-reviews-pane" aria-selected="false">✍️ Attempt Reviews</button>
+        </li>
+      </ul>
+
+      <div class="tab-content quiz-subtab-content">
+        <div class="tab-pane fade show active" id="quiz-builder-pane" role="tabpanel" aria-labelledby="quiz-builder-tab" tabindex="0">
+          <div class="quiz-shell">
+            <div class="quiz-left card">
+              <h3 class="quiz-panel-title">1. Quiz Setup</h3>
+              <div id="quizBuilderStats" class="quiz-stats"></div>
+              <form id="quizForm" class="grid">
+                <select id="quizClassId" required></select>
+                <select id="quizNumber" required>
+                  <option value="">Quiz Number</option>
+                  <option value="1">Quiz 1</option>
+                  <option value="2">Quiz 2</option>
+                  <option value="3">Quiz 3</option>
+                  <option value="4">Quiz 4</option>
+                </select>
+                <input id="quizTitle" placeholder="Quiz title" required />
+                <select id="currentQuestionMode">
+                  <option value="mcq">Multiple Choice</option>
+                  <option value="theory">Short Question</option>
+                </select>
+                <input id="quizDuration" type="number" min="1" placeholder="Duration (minutes)" required />
+                <input id="quizAttemptLimit" type="number" min="1" value="1" placeholder="Attempt limit per student" required />
+                <label class="quiz-checkbox-row"><input id="quizAntiCheat" type="checkbox" checked /> Enable anti-cheat (tab switch/copy protection)</label>
+                <button id="addQuestionBtn" type="button" class="quiz-add-question-btn">+ Add Question</button>
+              </form>
+              <p id="draftStatus" class="message quiz-draft-status"></p>
+
+              <h3 class="quiz-panel-title">2. Questions</h3>
+              <div class="inline-actions quiz-primary-actions">
+                <button id="cancelQuestionEditBtn" type="button">Cancel Question Edit</button>
+                <button id="saveDraftBtn" type="button">Save Draft</button>
+                <button id="loadDraftBtn" type="button">Load Draft</button>
+              </div>
+              <div id="questionBuilder" class="builder"></div>
+
+              <details class="quiz-import-block">
+                <summary><strong>3. Import / Paste Questions</strong></summary>
+                <form id="quizImportForm" class="grid two">
+                  <select id="quizImportMode">
+                    <option value="mixed">Mixed (MCQ + Theory)</option>
+                    <option value="mcq">MCQ only</option>
+                    <option value="theory">Theory only</option>
+                  </select>
+                  <input id="quizImportFile" type="file" accept=".csv,.txt" />
+                  <button type="submit">Bulk Import Questions (CSV)</button>
+                </form>
+                <p class="meta">CSV headers: <code>type,prompt,option1,option2,option3,option4,correctIndex(1-4),theoryAnswer,marks</code> (marks is optional, MCQ is always 1, theory defaults to 5)</p>
+                <div class="inline-actions template-downloads">
+                  <a class="button-link" href="./templates/quiz-mcq-template.csv" download>Download MCQ CSV</a>
+                  <a class="button-link" href="./templates/quiz-theory-template.csv" download>Download Theory CSV</a>
+                  <a class="button-link" href="./templates/quiz-mixed-template.csv" download>Download Mixed CSV</a>
+                </div>
+                <textarea id="mcqPasteInput" rows="7" placeholder="Paste full MCQs/theory blocks here..."></textarea>
+                <button id="parsePasteBtn" type="button">Parse Pasted Questions</button>
+
+                <div class="quiz-allq-wrap">
+                  <h4 class="quiz-panel-title quiz-allq-title">Edit All Questions (<span id="importedCount">0</span>)</h4>
+                  <p class="meta">Edit prompts, options, correct answers, model answers and marks for every question below — works for manually added and bulk-imported questions alike.</p>
+                  <div id="quizAllQuestionsEditor" class="quiz-allq-list"></div>
+                </div>
+              </details>
+
+              <div class="quiz-action-grid quiz-sticky-actions">
+                <button id="publishCurrentDraftBtn" type="button" class="quiz-action-primary">✅ Publish Quiz</button>
+                <button id="deleteCurrentDraftBtn" type="button">🗑️ Delete Draft</button>
+                <button id="archiveCurrentQuizBtn" type="button">📦 Archive Quiz</button>
+                <button id="restoreCurrentQuizBtn" type="button">↩️ Restore Quiz</button>
+              </div>
             </div>
-            <textarea id="mcqPasteInput" rows="7" placeholder="Paste full MCQs/theory blocks here..."></textarea>
-            <button id="parsePasteBtn" type="button">Parse Pasted Questions</button>
-          </details>
-          <div class="quiz-action-grid">
-            <button id="publishCurrentDraftBtn" type="button">Publish Quiz</button>
-            <button id="deleteCurrentDraftBtn" type="button">Delete Draft</button>
-            <button id="archiveCurrentQuizBtn" type="button">Archive Quiz</button>
-            <button id="restoreCurrentQuizBtn" type="button">Restore Quiz</button>
+            <div class="quiz-right card">
+              <h3 class="quiz-panel-title">Preview</h3>
+              <div class="quiz-top-filters grid two">
+                <select id="quizPreviewClass"></select>
+                <select id="quizPreviewSemester"></select>
+              </div>
+              <h4>Draft Preview</h4>
+              <div id="quizDraftPreview" class="list quiz-scroll-list"></div>
+              <h4>Archived Quizzes</h4>
+              <div id="archivedQuizzesPreview" class="list quiz-scroll-list"></div>
+            </div>
           </div>
+          <input id="quizId" type="hidden" />
+          <input id="quizDraftId" type="hidden" />
         </div>
-        <div class="quiz-right card">
-          <h3>Preview</h3>
-          <div class="quiz-top-filters grid two">
-            <select id="quizPreviewClass"></select>
-            <select id="quizPreviewSemester"></select>
-          </div>
-          <h4>Draft Preview</h4>
-          <div id="quizDraftPreview" class="list"></div>
-          <h4>Archived Quizzes</h4>
-          <div id="archivedQuizzesPreview" class="list"></div>
+
+        <div class="tab-pane fade" id="quiz-library-pane" role="tabpanel" aria-labelledby="quiz-library-tab" tabindex="0">
+          <details open>
+            <summary><strong>All Drafts</strong></summary>
+            <div id="quizDraftsList" class="list quiz-scroll-list"></div>
+          </details>
+          <details open>
+            <summary><strong>All Quizzes</strong></summary>
+            <div id="quizzesList" class="list quiz-scroll-list"></div>
+          </details>
+        </div>
+
+        <div class="tab-pane fade" id="quiz-analytics-pane" role="tabpanel" aria-labelledby="quiz-analytics-tab" tabindex="0">
+          <div id="quizAnalyticsClassFilters" class="quiz-analytics-toolbar"></div>
+          <div id="quizAnalyticsList" class="list quiz-scroll-list-lg"></div>
+        </div>
+
+        <div class="tab-pane fade" id="quiz-reviews-pane" role="tabpanel" aria-labelledby="quiz-reviews-tab" tabindex="0">
+          <div id="quizAttemptClassFilters" class="quiz-analytics-toolbar"></div>
+          <div id="quizAttemptReviewsList" class="list quiz-scroll-list-lg"></div>
         </div>
       </div>
-      <input id="quizId" type="hidden" />
-      <input id="quizDraftId" type="hidden" />
-      <details>
-        <summary><strong>All Drafts</strong></summary>
-        <div id="quizDraftsList" class="list"></div>
-      </details>
-      <details>
-        <summary><strong>All Quizzes</strong></summary>
-        <div id="quizzesList" class="list"></div>
-      </details>
-      <details>
-        <summary><strong>Quiz Analytics</strong></summary>
-        <div id="quizAnalyticsClassFilters" class="quiz-analytics-toolbar"></div>
-        <div id="quizAnalyticsList" class="list"></div>
-      </details>
-      <details>
-        <summary><strong>Quiz Attempt Reviews (Short Questions)</strong></summary>
-        <div id="quizAttemptClassFilters" class="quiz-analytics-toolbar"></div>
-        <div id="quizAttemptReviewsList" class="list"></div>
-      </details>
         </section>
       </div>
 
       <div class="tab-pane fade" id="teacher-assignments-pane" role="tabpanel" aria-labelledby="teacher-assignments-tab" tabindex="0">
-        <section class="card">
-      <h2>Assignments</h2>
-      <form id="assignmentForm" class="grid two">
-        <select id="assignmentClassId" required></select>
-        <select id="assignmentNumber" required>
-          <option value="">Assignment Number</option>
-          <option value="1">Assignment 1</option>
-          <option value="2">Assignment 2</option>
-          <option value="3">Assignment 3</option>
-          <option value="4">Assignment 4</option>
-        </select>
-        <input id="assignmentTitle" placeholder="Assignment title" required />
-        <input id="assignmentDeadline" type="datetime-local" required />
-        <button type="submit">Create Assignment</button>
-      </form>
-      <div id="assignmentClassFilters" class="quiz-analytics-toolbar"></div>
-      <div id="assignmentsList" class="list"></div>
+        <section class="card quiz-portal">
+          <div class="quiz-portal-head">
+            <h2>Assignments</h2>
+            <p class="meta">Workflow: create assignment -> students submit -> filter by class/number -> review &amp; bulk download.</p>
+          </div>
+          <h3 class="quiz-panel-title">1. Create Assignment</h3>
+          <form id="assignmentForm" class="grid two">
+            <select id="assignmentClassId" required></select>
+            <select id="assignmentNumber" required>
+              <option value="">Assignment Number</option>
+              <option value="1">Assignment 1</option>
+              <option value="2">Assignment 2</option>
+              <option value="3">Assignment 3</option>
+              <option value="4">Assignment 4</option>
+            </select>
+            <input id="assignmentTitle" placeholder="Assignment title" required />
+            <input id="assignmentDeadline" type="datetime-local" required />
+            <button type="submit" class="quiz-action-primary">+ Create Assignment</button>
+          </form>
+          <h3 class="quiz-panel-title">2. Manage &amp; Review</h3>
+          <div id="assignmentClassFilters" class="quiz-analytics-toolbar"></div>
+          <div id="assignmentsList" class="list quiz-scroll-list-lg"></div>
         </section>
       </div>
 
       <div class="tab-pane fade" id="teacher-evaluation-pane" role="tabpanel" aria-labelledby="teacher-evaluation-tab" tabindex="0">
-        <section class="card">
-      <h2>Teacher Evaluation (Aggregated Only)</h2>
-      <div id="evaluationClassFilters" class="quiz-analytics-toolbar"></div>
-      <div id="evaluationStatsList" class="list"></div>
+        <section class="card quiz-portal">
+          <div class="quiz-portal-head">
+            <h2>Teacher Evaluation (Aggregated Only)</h2>
+            <p class="meta">Anonymous, class-wise aggregated feedback from students.</p>
+          </div>
+          <div id="evaluationClassFilters" class="quiz-analytics-toolbar"></div>
+          <div id="evaluationStatsList" class="list quiz-scroll-list-lg"></div>
         </section>
       </div>
 
       <div class="tab-pane fade" id="teacher-announcements-pane" role="tabpanel" aria-labelledby="teacher-announcements-tab" tabindex="0">
-        <section class="card">
-      <h2>Discussion Announcements</h2>
-      <form id="announcementForm" class="grid two">
-        <select id="announcementClassId" required></select>
-        <input id="announcementTitle" placeholder="Announcement title" required />
-        <textarea id="announcementBody" placeholder="Announcement body" required></textarea>
-        <button type="submit">Post Announcement</button>
-      </form>
-      <div id="announcementList" class="list"></div>
+        <section class="card quiz-portal">
+          <div class="quiz-portal-head">
+            <h2>Discussion Announcements</h2>
+            <p class="meta">Post class-wide announcements visible to enrolled students.</p>
+          </div>
+          <h3 class="quiz-panel-title">1. Post Announcement</h3>
+          <form id="announcementForm" class="grid two">
+            <select id="announcementClassId" required></select>
+            <input id="announcementTitle" placeholder="Announcement title" required />
+            <textarea id="announcementBody" placeholder="Announcement body" required></textarea>
+            <button type="submit" class="quiz-action-primary">+ Post Announcement</button>
+          </form>
+          <h3 class="quiz-panel-title">2. Posted Announcements</h3>
+          <div id="announcementList" class="list quiz-scroll-list-lg"></div>
         </section>
       </div>
     </section>
   </main>
+
+  <footer class="app-footer">
+    <img class="app-footer-photo" src="./assets/Founder.png" alt="Muhammad Tahir Mehmood" />
+    <p>Developed by <strong>Muhammad Tahir Mehmood</strong> (MPhil Computer Science) &mdash; Principal, Govt. School Okara | Visiting Lecturer, Punjab College Okara</p>
+  </footer>
 
   <script type="module" src="./js/teacher.js"></script>
   <script src="./js/pwa.js" defer></script>

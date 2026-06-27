@@ -186,6 +186,13 @@ function getQuestionTimerSeconds(question) {
   return Math.max(0, Number(question?.questionTimeSec || 0));
 }
 
+function formatTimerMinutes(totalSeconds) {
+  const s = Math.max(0, Number(totalSeconds) || 0);
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
 function attachAntiCheat() {
   if (!quizRuntime?.quiz?.antiCheatEnabled) return;
   const reportViolation = (reason) => {
@@ -270,9 +277,9 @@ function startQuiz(quizId) {
         submitQuiz({ skipConfirm: true, reason: "question_timer" });
       }
     } else {
-      qs("#quizTimeLeft").textContent = String(quizRuntime.secondsLeft);
+      qs("#quizTimeLeft").textContent = formatTimerMinutes(quizRuntime.secondsLeft);
       const qTimer = qs("#questionTimeLeft");
-      if (qTimer) qTimer.textContent = String(quizRuntime.questionSecondsLeft[quizRuntime.idx]);
+      if (qTimer) qTimer.textContent = formatTimerMinutes(quizRuntime.questionSecondsLeft[quizRuntime.idx]);
     }
   }, 1000);
 }
@@ -285,27 +292,37 @@ function renderQuizAttemptArea() {
   const q = quizRuntime.quiz.questions[quizRuntime.idx];
   const prompt = q.promptHtml || q.text || "";
   const options = q.type === "theory"
-    ? `<textarea id="theoryAnswer" rows="5" placeholder="Write your answer here...">${escapeHtml(String(quizRuntime.answers[quizRuntime.idx] || ""))}</textarea>`
+    ? `<textarea id="theoryAnswer" rows="5" class="quiz-theory-input" placeholder="Write your answer here...">${escapeHtml(String(quizRuntime.answers[quizRuntime.idx] || ""))}</textarea>`
     : q.options.map((opt, i) => {
       const key = i + 1;
-      const checked = quizRuntime.answers[quizRuntime.idx] === key ? "checked" : "";
+      const isChecked = quizRuntime.answers[quizRuntime.idx] === key;
       const disabled = quizRuntime.lockedMcq[quizRuntime.idx] ? "disabled" : "";
-      return `<label><input type="radio" name="qopt" value="${key}" ${checked} ${disabled}/> ${escapeHtml(opt)}</label>`;
+      const letter = String.fromCharCode(64 + key);
+      return `<label class="quiz-option${isChecked ? " selected" : ""}${disabled ? " is-disabled" : ""}">
+        <input type="radio" name="qopt" value="${key}" ${isChecked ? "checked" : ""} ${disabled}/>
+        <span class="quiz-option-badge">${letter}</span>
+        <span class="quiz-option-text">${escapeHtml(opt)}</span>
+      </label>`;
     }).join("");
-  qs("#quizAttemptArea").innerHTML = `<article class="item">
-    <h4>${escapeHtml(quizRuntime.quiz.title)} | Time Left: <span id="quizTimeLeft">${quizRuntime.secondsLeft}</span>s</h4>
+  qs("#quizAttemptArea").innerHTML = `<article class="item quiz-attempt-card">
+    <div class="quiz-attempt-head">
+      <h4>${escapeHtml(quizRuntime.quiz.title)}</h4>
+      <div class="quiz-attempt-timers">
+        <span class="chip chip-blue">⏱ Time Left: <span id="quizTimeLeft">${formatTimerMinutes(quizRuntime.secondsLeft)}</span></span>
+        ${getQuestionTimerSeconds(q) > 0 ? `<span class="chip chip-amber">Question Time: <span id="questionTimeLeft">${formatTimerMinutes(quizRuntime.questionSecondsLeft[quizRuntime.idx])}</span></span>` : ""}
+      </div>
+    </div>
     <p id="quizAntiCheatMsg" class="bad"></p>
     <p class="meta">Warning: If you switch tab/app or turn off/minimize screen repeatedly, quiz can be stopped automatically.</p>
-    <p>${getQuestionTimerSeconds(q) > 0 ? `Question Time Left: <span id="questionTimeLeft">${quizRuntime.questionSecondsLeft[quizRuntime.idx]}</span>s` : "No per-question timer"}</p>
     ${q.type !== "theory" && quizRuntime.lockedMcq[quizRuntime.idx] ? "<p class='meta'>Option locked for this question (one-time selection).</p>" : ""}
-    <p><strong>Q${quizRuntime.idx + 1}/${quizRuntime.quiz.questions.length}:</strong></p>
-    <div>${prompt}</div>
-    ${q.imageDataUrl ? `<p><img src="${q.imageDataUrl}" alt="question image" style="max-width:260px;border:1px solid #d9e0e6;"></p>` : ""}
-    <div class="grid">${options}</div>
-    <div class="inline-actions">
-      <button id="prevQBtn" type="button">Previous</button>
-      <button id="nextQBtn" type="button">Next</button>
-      <button id="submitQuizBtn" type="button">Submit Quiz</button>
+    <p class="quiz-attempt-qno"><strong>Q${quizRuntime.idx + 1}/${quizRuntime.quiz.questions.length}</strong></p>
+    <div class="quiz-attempt-prompt">${prompt}</div>
+    ${q.imageDataUrl ? `<p><img src="${q.imageDataUrl}" alt="question image" class="quiz-attempt-image"></p>` : ""}
+    <div class="quiz-options-list">${options}</div>
+    <div class="quiz-attempt-actions">
+      <button id="prevQBtn" type="button">⬅ Previous</button>
+      <button id="nextQBtn" type="button">Next ➡</button>
+      <button id="submitQuizBtn" type="button" class="quiz-submit-btn">✅ Submit Quiz</button>
     </div>
   </article>`;
   if (q.type === "theory") {
