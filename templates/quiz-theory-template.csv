@@ -1,0 +1,3 @@
+type,prompt,option1,option2,option3,option4,correctIndex,theoryAnswer
+theory,Explain the difference between client-side and server-side rendering.,,,,,,Client-side rendering builds UI in the browser while server-side rendering returns prebuilt HTML from the server.
+theory,Define normalization in relational databases.,,,,,,Normalization is the process of organizing data to reduce redundancy and improve integrity.

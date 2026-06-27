@@ -1,0 +1,4 @@
+type,prompt,option1,option2,option3,option4,correctIndex,theoryAnswer
+mcq,Which CSS property controls text size?,font-size,color,margin,padding,1,
+mcq,HTTP status code for "Not Found" is?,200,201,404,500,3,
+theory,What is event bubbling in JavaScript?,,,,,,Event bubbling is when an event starts at the target element and propagates upward through ancestor elements.

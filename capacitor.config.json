@@ -1,0 +1,13 @@
+{
+  "appId": "com.university.lms",
+  "appName": "University LMS",
+  "webDir": ".",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https",
+    "hostname": "localhost"
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

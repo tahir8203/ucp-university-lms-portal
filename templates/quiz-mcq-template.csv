@@ -1,0 +1,3 @@
+type,prompt,option1,option2,option3,option4,correctIndex,theoryAnswer
+mcq,What is the capital of Pakistan?,Lahore,Karachi,Islamabad,Peshawar,3,
+mcq,Which HTML tag creates a hyperlink?,<div>,<p>,<a>,<span>,3,

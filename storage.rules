@@ -1,0 +1,28 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return signedIn()
+        ? firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role
+        : null;
+    }
+
+    function isTeacher() {
+      return role() == "teacher";
+    }
+
+    match /teachers/{teacherId}/classes/{classId}/lectures/{allPaths=**} {
+      allow read: if true;
+      allow write: if isTeacher() && request.auth.uid == teacherId;
+    }
+
+    match /assignments/{assignmentId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if true;
+    }
+  }
+}

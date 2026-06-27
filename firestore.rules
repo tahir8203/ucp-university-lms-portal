@@ -1,0 +1,228 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return signedIn()
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : null;
+    }
+
+    function isAdmin() {
+      return role() == "admin";
+    }
+
+    function isTeacher() {
+      return role() == "teacher";
+    }
+
+    function isStaff() {
+      return isAdmin() || isTeacher();
+    }
+
+    function teacherOwnsAssignment(assignmentId) {
+      return assignmentId is string
+        && exists(/databases/$(database)/documents/assignments/$(assignmentId))
+        && get(/databases/$(database)/documents/assignments/$(assignmentId)).data.teacherId == request.auth.uid;
+    }
+
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isStaff());
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.role == "pending_teacher"
+        && request.resource.data.email is string
+        && request.resource.data.name is string;
+      allow update, delete: if isAdmin();
+    }
+
+    match /students/{studentId} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+
+    match /studentAuth/{studentId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.studentId == studentId
+        && request.resource.data.rollNo is string
+        && request.resource.data.studentName is string
+        && request.resource.data.passwordSalt is string
+        && request.resource.data.passwordHash is string
+        && request.resource.data.passwordPlain is string
+        && request.resource.data.mustChangePassword is bool;
+      allow delete: if isAdmin();
+    }
+
+    match /classes/{classId} {
+      allow read: if true;
+      allow create, update: if isTeacher() && request.resource.data.teacherId == request.auth.uid;
+      allow delete: if isTeacher() && resource.data.teacherId == request.auth.uid;
+    }
+
+    match /enrollments/{enrollmentId} {
+      allow read: if true;
+      allow create, update: if isTeacher() && request.resource.data.teacherId == request.auth.uid;
+      allow delete: if isTeacher() && resource.data.teacherId == request.auth.uid;
+    }
+
+    match /lectures/{lectureId} {
+      allow read: if true;
+      allow create, update: if isTeacher() && request.resource.data.teacherId == request.auth.uid;
+      allow delete: if isTeacher() && resource.data.teacherId == request.auth.uid;
+    }
+
+    match /quizzes/{quizId} {
+      allow read: if true;
+      allow create, update: if isTeacher() && request.resource.data.teacherId == request.auth.uid;
+      allow delete: if isTeacher() && resource.data.teacherId == request.auth.uid;
+    }
+
+    match /quizDrafts/{draftId} {
+      allow read: if isTeacher() && resource.data.teacherId == request.auth.uid;
+      allow create, update: if isTeacher() && request.resource.data.teacherId == request.auth.uid;
+      allow delete: if isTeacher() && resource.data.teacherId == request.auth.uid;
+    }
+
+    match /quizAttempts/{attemptId} {
+      allow read: if true;
+      allow create: if request.resource.data.studentKey is string
+        && request.resource.data.quizId is string
+        && request.resource.data.answers is list;
+      allow update: if isTeacher()
+        && resource.data.teacherId == request.auth.uid
+        && (
+          (request.resource.data.teacherId == resource.data.teacherId && request.resource.data.locked == resource.data.locked)
+          || (request.resource.data.locked is bool && request.resource.data.unlockedBy is string)
+        );
+      allow delete: if false;
+    }
+
+    match /quizAnalytics/{quizId} {
+      allow read: if isStaff();
+      allow write: if true;
+    }
+
+    match /assignments/{assignmentId} {
+      allow read: if true;
+      allow create, update: if isTeacher() && request.resource.data.teacherId == request.auth.uid;
+      allow delete: if isTeacher() && resource.data.teacherId == request.auth.uid;
+    }
+
+    match /assignmentSubmissions/{submissionId} {
+      allow read: if true;
+      allow create: if request.resource.data.studentKey is string
+        && request.resource.data.assignmentId is string
+        && (
+          (request.resource.data.fileUrl is string)
+          || (request.resource.data.fileId is string)
+        );
+      allow update: if isTeacher()
+        || (
+          request.resource.data.studentKey == resource.data.studentKey
+          && request.resource.data.assignmentId == resource.data.assignmentId
+          && request.resource.data.classId == resource.data.classId
+          && (
+            (request.resource.data.fileUrl is string)
+            || (request.resource.data.fileId is string)
+          )
+        );
+      allow delete: if isTeacher() && resource.data.teacherId == request.auth.uid;
+    }
+
+    match /discussionThreads/{threadId} {
+      allow read: if true;
+      allow create: if request.resource.data.classId is string
+        && request.resource.data.title is string
+        && request.resource.data.body is string;
+      allow update, delete: if isTeacher() || isAdmin();
+    }
+
+    match /discussionReplies/{replyId} {
+      allow read: if true;
+      allow create: if request.resource.data.threadId is string
+        && request.resource.data.body is string;
+      allow update, delete: if isTeacher() || isAdmin();
+    }
+
+    match /evaluations/{evaluationId} {
+      allow read: if isStaff();
+      allow create: if request.resource.data.classId is string
+        && request.resource.data.teacherId is string
+        && request.resource.data.questionScores is map
+        && request.resource.data.anonymous is bool
+        && (
+          request.resource.data.anonymous == true
+          || (
+            request.resource.data.studentKey is string
+            && request.resource.data.studentName is string
+            && request.resource.data.studentRollNo is string
+          )
+        );
+      allow update: if false;
+      allow delete: if isAdmin()
+        || (isTeacher() && resource.data.teacherId == request.auth.uid);
+    }
+
+    match /evaluationAudits/{evaluationId} {
+      allow read: if isAdmin();
+      allow create: if request.resource.data.classId is string
+        && request.resource.data.teacherId is string
+        && request.resource.data.evaluationId == evaluationId
+        && request.resource.data.studentKey is string
+        && request.resource.data.studentName is string
+        && request.resource.data.studentRollNo is string;
+      allow update: if false;
+      allow delete: if isAdmin()
+        || (isTeacher() && resource.data.teacherId == request.auth.uid);
+    }
+
+    match /evaluationStats/{classId} {
+      allow read: if isStaff();
+      allow write: if true;
+    }
+
+    match /studentProgress/{progressId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /certificates/{certificateId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if false;
+    }
+
+    match /filePayloads/{fileId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if false;
+      allow delete: if isAdmin()
+        || (
+          isTeacher()
+          && resource.data.context is map
+          && resource.data.context.assignmentId is string
+          && teacherOwnsAssignment(resource.data.context.assignmentId)
+        );
+
+      match /chunks/{chunkId} {
+        allow read: if true;
+        allow create: if true;
+        allow update: if false;
+        allow delete: if isAdmin()
+          || (
+            isTeacher()
+            && get(/databases/$(database)/documents/filePayloads/$(fileId)).data.context is map
+            && get(/databases/$(database)/documents/filePayloads/$(fileId)).data.context.assignmentId is string
+            && teacherOwnsAssignment(get(/databases/$(database)/documents/filePayloads/$(fileId)).data.context.assignmentId)
+          );
+      }
+    }
+  }
+}

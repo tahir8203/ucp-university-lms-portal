@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0d5ea8" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="University LMS" />
+  <title>University LMS - Teacher</title>
+  <link rel="manifest" href="./app.webmanifest" />
+  <link rel="icon" href="./assets/icon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous" />
+  <link rel="stylesheet" href="./css/styles.css" />
+</head>
+<body class="app-dashboard app-teacher">
+  <header class="topbar">
+    <h1>Teacher Dashboard</h1>
+    <div>
+      <span id="whoami"></span>
+      <button id="logoutBtn" type="button">Logout</button>
+    </div>
+  </header>
+
+  <main class="container dashboard-tabs-shell">
+    <section class="card tabs-nav-card">
+      <ul class="nav nav-pills portal-tabs" id="teacherPortalTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="teacher-classes-tab" data-bs-toggle="tab" data-bs-target="#teacher-classes-pane" type="button" role="tab" aria-controls="teacher-classes-pane" aria-selected="true">Classes & Enrollment</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="teacher-lectures-tab" data-bs-toggle="tab" data-bs-target="#teacher-lectures-pane" type="button" role="tab" aria-controls="teacher-lectures-pane" aria-selected="false">Lectures Delivered</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="teacher-quizzes-tab" data-bs-toggle="tab" data-bs-target="#teacher-quizzes-pane" type="button" role="tab" aria-controls="teacher-quizzes-pane" aria-selected="false">Quizzes & Analytics</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="teacher-assignments-tab" data-bs-toggle="tab" data-bs-target="#teacher-assignments-pane" type="button" role="tab" aria-controls="teacher-assignments-pane" aria-selected="false">Assignments</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="teacher-evaluation-tab" data-bs-toggle="tab" data-bs-target="#teacher-evaluation-pane" type="button" role="tab" aria-controls="teacher-evaluation-pane" aria-selected="false">Teacher Evaluation</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="teacher-announcements-tab" data-bs-toggle="tab" data-bs-target="#teacher-announcements-pane" type="button" role="tab" aria-controls="teacher-announcements-pane" aria-selected="false">Discussion Announcements</button>
+        </li>
+      </ul>
+    </section>
+
+    <section class="tab-content portal-tab-content" id="teacherPortalTabsContent">
+      <div class="tab-pane fade show active" id="teacher-classes-pane" role="tabpanel" aria-labelledby="teacher-classes-tab" tabindex="0">
+        <section class="card">
+      <h2>Classes & Enrollment</h2>
+      <form id="classForm" class="grid two">
+        <input id="className" placeholder="Class name (e.g., BSCS-5A)" required />
+        <input id="classSubject" placeholder="Subject (e.g., Web Engineering)" required />
+        <input id="semester" placeholder="Semester (e.g., Fall 2026)" required />
+        <button type="submit">Create Class</button>
+      </form>
+      <form id="csvEnrollForm" class="grid two">
+        <select id="enrollClassId" required></select>
+        <input id="csvFile" type="file" accept=".csv" required />
+        <button type="submit">Upload CSV & Enroll</button>
+      </form>
+      <p class="meta">CSV headers: <code>rollNo,name,password(optional)</code>. If password is blank, a secure password is auto-generated.</p>
+      <div class="inline-actions template-downloads">
+        <a class="button-link" href="./templates/student-enrollment-template.csv" download>Download Enrollment CSV Template</a>
+      </div>
+      <details id="enrollCredentialsPanel" class="hidden">
+        <summary><strong>Generated Student Login Credentials</strong></summary>
+        <div class="inline-actions">
+          <button id="downloadEnrollCredentialsBtn" type="button">Download Credentials CSV</button>
+        </div>
+        <div id="enrollCredentialsList" class="table-wrap"></div>
+      </details>
+      <p id="classEnrollMsg" class="message"></p>
+      <div id="classesList" class="list"></div>
+        </section>
+      </div>
+
+      <div class="tab-pane fade" id="teacher-lectures-pane" role="tabpanel" aria-labelledby="teacher-lectures-tab" tabindex="0">
+        <section class="card">
+      <h2>Lectures Delivered</h2>
+      <form id="lectureForm" class="grid two">
+        <select id="lectureClassId" required></select>
+        <input id="lectureTitle" placeholder="Lecture title" required />
+        <input id="lectureDate" type="date" required />
+        <input id="lectureVideo" placeholder="Optional video link" />
+        <input id="lectureFiles" type="file" multiple />
+        <button type="submit">Save Lecture</button>
+      </form>
+      <input id="lectureId" type="hidden" />
+      <div id="lecturesList" class="list"></div>
+        </section>
+      </div>
+
+      <div class="tab-pane fade" id="teacher-quizzes-pane" role="tabpanel" aria-labelledby="teacher-quizzes-tab" tabindex="0">
+        <section class="card">
+      <h2>Quizzes (1-4 per class)</h2>
+      <p class="meta">Workflow: select class/quiz -> add/edit questions -> auto-save draft -> publish -> start/stop attempts.</p>
+      <div class="quiz-shell">
+        <div class="quiz-left card">
+          <h3>Quiz Setup</h3>
+          <div id="quizBuilderStats" class="quiz-stats"></div>
+          <form id="quizForm" class="grid">
+            <select id="quizClassId" required></select>
+            <select id="quizNumber" required>
+              <option value="">Quiz Number</option>
+              <option value="1">Quiz 1</option>
+              <option value="2">Quiz 2</option>
+              <option value="3">Quiz 3</option>
+              <option value="4">Quiz 4</option>
+            </select>
+            <input id="quizTitle" placeholder="Quiz title" required />
+            <select id="currentQuestionMode">
+              <option value="mcq">Multiple Choice</option>
+              <option value="theory">Short Question</option>
+            </select>
+            <input id="quizDuration" type="number" min="1" placeholder="Duration (minutes)" required />
+            <input id="quizAttemptLimit" type="number" min="1" value="1" placeholder="Attempt limit per student" required />
+            <label><input id="quizAntiCheat" type="checkbox" checked /> Enable anti-cheat (tab switch/copy protection)</label>
+            <button id="addQuestionBtn" type="button">Add Question</button>
+          </form>
+          <p id="draftStatus" class="message quiz-draft-status"></p>
+          <div class="inline-actions quiz-primary-actions">
+            <button id="cancelQuestionEditBtn" type="button">Cancel Question Edit</button>
+            <button id="saveDraftBtn" type="button">Save Draft</button>
+            <button id="loadDraftBtn" type="button">Load Draft</button>
+          </div>
+          <div id="questionBuilder" class="builder"></div>
+          <details open>
+            <summary><strong>Import / Paste Questions</strong></summary>
+            <form id="quizImportForm" class="grid two">
+              <select id="quizImportMode">
+                <option value="mixed">Mixed (MCQ + Theory)</option>
+                <option value="mcq">MCQ only</option>
+                <option value="theory">Theory only</option>
+              </select>
+              <input id="quizImportFile" type="file" accept=".csv,.txt" />
+              <button type="submit">Bulk Import Questions (CSV)</button>
+            </form>
+            <p class="meta">CSV headers: <code>type,prompt,option1,option2,option3,option4,correctIndex(1-4),theoryAnswer</code></p>
+            <div class="inline-actions template-downloads">
+              <a class="button-link" href="./templates/quiz-mcq-template.csv" download>Download MCQ CSV</a>
+              <a class="button-link" href="./templates/quiz-theory-template.csv" download>Download Theory CSV</a>
+              <a class="button-link" href="./templates/quiz-mixed-template.csv" download>Download Mixed CSV</a>
+            </div>
+            <textarea id="mcqPasteInput" rows="7" placeholder="Paste full MCQs/theory blocks here..."></textarea>
+            <button id="parsePasteBtn" type="button">Parse Pasted Questions</button>
+          </details>
+          <div class="quiz-action-grid">
+            <button id="publishCurrentDraftBtn" type="button">Publish Quiz</button>
+            <button id="deleteCurrentDraftBtn" type="button">Delete Draft</button>
+            <button id="archiveCurrentQuizBtn" type="button">Archive Quiz</button>
+            <button id="restoreCurrentQuizBtn" type="button">Restore Quiz</button>
+          </div>
+        </div>
+        <div class="quiz-right card">
+          <h3>Preview</h3>
+          <div class="quiz-top-filters grid two">
+            <select id="quizPreviewClass"></select>
+            <select id="quizPreviewSemester"></select>
+          </div>
+          <h4>Draft Preview</h4>
+          <div id="quizDraftPreview" class="list"></div>
+          <h4>Archived Quizzes</h4>
+          <div id="archivedQuizzesPreview" class="list"></div>
+        </div>
+      </div>
+      <input id="quizId" type="hidden" />
+      <input id="quizDraftId" type="hidden" />
+      <details>
+        <summary><strong>All Drafts</strong></summary>
+        <div id="quizDraftsList" class="list"></div>
+      </details>
+      <details>
+        <summary><strong>All Quizzes</strong></summary>
+        <div id="quizzesList" class="list"></div>
+      </details>
+      <details>
+        <summary><strong>Quiz Analytics</strong></summary>
+        <div id="quizAnalyticsClassFilters" class="quiz-analytics-toolbar"></div>
+        <div id="quizAnalyticsList" class="list"></div>
+      </details>
+      <details>
+        <summary><strong>Quiz Attempt Reviews (Short Questions)</strong></summary>
+        <div id="quizAttemptClassFilters" class="quiz-analytics-toolbar"></div>
+        <div id="quizAttemptReviewsList" class="list"></div>
+      </details>
+        </section>
+      </div>
+
+      <div class="tab-pane fade" id="teacher-assignments-pane" role="tabpanel" aria-labelledby="teacher-assignments-tab" tabindex="0">
+        <section class="card">
+      <h2>Assignments</h2>
+      <form id="assignmentForm" class="grid two">
+        <select id="assignmentClassId" required></select>
+        <select id="assignmentNumber" required>
+          <option value="">Assignment Number</option>
+          <option value="1">Assignment 1</option>
+          <option value="2">Assignment 2</option>
+          <option value="3">Assignment 3</option>
+          <option value="4">Assignment 4</option>
+        </select>
+        <input id="assignmentTitle" placeholder="Assignment title" required />
+        <input id="assignmentDeadline" type="datetime-local" required />
+        <button type="submit">Create Assignment</button>
+      </form>
+      <div id="assignmentClassFilters" class="quiz-analytics-toolbar"></div>
+      <div id="assignmentsList" class="list"></div>
+        </section>
+      </div>
+
+      <div class="tab-pane fade" id="teacher-evaluation-pane" role="tabpanel" aria-labelledby="teacher-evaluation-tab" tabindex="0">
+        <section class="card">
+      <h2>Teacher Evaluation (Aggregated Only)</h2>
+      <div id="evaluationClassFilters" class="quiz-analytics-toolbar"></div>
+      <div id="evaluationStatsList" class="list"></div>
+        </section>
+      </div>
+
+      <div class="tab-pane fade" id="teacher-announcements-pane" role="tabpanel" aria-labelledby="teacher-announcements-tab" tabindex="0">
+        <section class="card">
+      <h2>Discussion Announcements</h2>
+      <form id="announcementForm" class="grid two">
+        <select id="announcementClassId" required></select>
+        <input id="announcementTitle" placeholder="Announcement title" required />
+        <textarea id="announcementBody" placeholder="Announcement body" required></textarea>
+        <button type="submit">Post Announcement</button>
+      </form>
+      <div id="announcementList" class="list"></div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="./js/teacher.js"></script>
+  <script src="./js/pwa.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+</body>
+</html>
