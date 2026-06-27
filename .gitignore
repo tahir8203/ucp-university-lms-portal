@@ -1,6 +1,7 @@
 node_modules/
 android/
 dist/
+.gradle-build/
 *.apk
 *.aab
 .DS_Store
