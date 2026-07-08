@@ -82,6 +82,7 @@ function buildQuizPayload() {
     durationMin: Number(qs("#quizDuration").value || 1),
     attemptLimit: Number(qs("#quizAttemptLimit").value || 1),
     antiCheatEnabled: !!qs("#quizAntiCheat").checked,
+    antiCheatLimit: Math.max(1, Math.min(10, Number(qs("#quizAntiCheatLimit")?.value || 3))),
     questions: state.quizQuestions.map(normalizeQuestion),
   };
 }
@@ -98,6 +99,7 @@ function draftPayloadHash(payload) {
     durationMin: payload.durationMin,
     attemptLimit: payload.attemptLimit,
     antiCheatEnabled: payload.antiCheatEnabled,
+    antiCheatLimit: payload.antiCheatLimit,
     questions: payload.questions,
   });
 }
@@ -1168,14 +1170,16 @@ function renderQuizzes() {
       const totalTheory = (q.questions || []).filter((x) => x.type === "theory").length;
       const totalMcq = (q.questions || []).filter((x) => x.type !== "theory").length;
       const totalMarks = (q.questions || []).reduce((sum, x) => sum + Number(x.type === "mcq" ? 1 : (x.maxMarks || 0)), 0);
+      const antiCheatOn = q.antiCheatEnabled !== false;
       return `<article class="item">
       <h4>${escapeHtml(q.title)} (Quiz ${q.quizNumber})</h4>
-        <p class="meta">${escapeHtml(className)} | status: ${q.status || "draft"} | ${q.durationMin} mins | attempts limit: ${q.attemptLimit || 1} | MCQ:${totalMcq} Theory:${totalTheory} | Total Marks:${totalMarks} | Anti-cheat: ${q.antiCheatEnabled ? "On" : "Off"}</p>
-        <p class="meta">Attempts open: ${q.acceptingAttempts ? "Yes" : "No"}</p>
+        <p class="meta">${escapeHtml(className)} | status: ${q.status || "draft"} | ${q.durationMin} mins | attempts limit: ${q.attemptLimit || 1} | MCQ:${totalMcq} Theory:${totalTheory} | Total Marks:${totalMarks}</p>
+        <p class="meta">Attempts open: ${q.acceptingAttempts ? "Yes" : "No"} | Anti-cheat: <span class="chip ${antiCheatOn ? "chip-green" : "chip-slate"}">${antiCheatOn ? "ON" : "OFF"}</span>${antiCheatOn ? ` <span class="chip chip-amber">Warnings allowed: ${Number(q.antiCheatLimit || 3)}</span>` : ""}</p>
         <div class="inline-actions">
           <button data-edit-quiz="${q.id}" type="button">Edit</button>
           <button data-toggle-publish="${q.id}" type="button">${q.status === "published" ? "Move to Draft" : "Publish"}</button>
           <button data-toggle-start="${q.id}" type="button">${q.acceptingAttempts ? "Stop Attempts" : "Start Attempts"}</button>
+          <button data-toggle-anticheat="${q.id}" type="button" class="${antiCheatOn ? "anticheat-on" : "anticheat-off"}">🛡️ Anti-cheat: ${antiCheatOn ? "ON" : "OFF"}</button>
           <button data-toggle-archive="${q.id}" type="button">${q.status === "archived" ? "Unarchive" : "Archive"}</button>
           <button data-del-quiz="${q.id}" type="button">Delete</button>
         </div>
@@ -1332,14 +1336,23 @@ function renderAnnouncements() {
 }
 
 function wireQuizFormAutosave() {
-  ["#quizClassId", "#quizNumber", "#quizTitle", "#quizDuration", "#quizAttemptLimit"].forEach((id) => {
+  ["#quizClassId", "#quizNumber", "#quizTitle", "#quizDuration", "#quizAttemptLimit", "#quizAntiCheatLimit"].forEach((id) => {
     qs(id).addEventListener("input", scheduleDraftAutosave);
     qs(id).addEventListener("change", scheduleDraftAutosave);
   });
   qs("#quizAntiCheat").addEventListener("change", scheduleDraftAutosave);
 }
 
-async function publishDraft(draftId) {
+function askAntiCheatChoice(currentlyEnabled) {
+  return confirm(
+    "Enable anti-cheat for this quiz?\n\n" +
+    "OK = Anti-cheat ON (tab switch / copy-paste protection)\n" +
+    "Cancel = Anti-cheat OFF\n\n" +
+    `(Current setting: ${currentlyEnabled ? "ON" : "OFF"})`
+  );
+}
+
+async function publishDraft(draftId, { antiCheatEnabled } = {}) {
   try {
     const d = state.quizDrafts.find((x) => x.id === draftId);
     if (!d) {
@@ -1354,7 +1367,8 @@ async function publishDraft(draftId) {
       title: d.title,
       durationMin: d.durationMin,
       attemptLimit: d.attemptLimit || 1,
-      antiCheatEnabled: d.antiCheatEnabled !== false,
+      antiCheatEnabled: antiCheatEnabled !== undefined ? !!antiCheatEnabled : d.antiCheatEnabled !== false,
+      antiCheatLimit: Math.max(1, Math.min(10, Number(d.antiCheatLimit || 3))),
       questions: (d.questions || []).map(normalizeQuestion),
       status: "published",
       acceptingAttempts: true,
@@ -1384,6 +1398,7 @@ function resetQuizEditor() {
   qs("#quizDraftId").value = "";
   qs("#quizAttemptLimit").value = "1";
   qs("#quizAntiCheat").checked = true;
+  qs("#quizAntiCheatLimit").value = "3";
   state.quizQuestions = [];
   state.activeQuestionIndex = 0;
   state.draftDirty = false;
@@ -1747,6 +1762,7 @@ function wireStaticEvents() {
     qs("#quizDuration").value = draft.durationMin || 10;
     qs("#quizAttemptLimit").value = draft.attemptLimit || 1;
     qs("#quizAntiCheat").checked = draft.antiCheatEnabled !== false;
+    qs("#quizAntiCheatLimit").value = draft.antiCheatLimit || 3;
     state.quizQuestions = (draft.questions || []).map(normalizeQuestion);
     state.activeQuestionIndex = 0;
     state.draftDirty = false;
@@ -1774,14 +1790,17 @@ function wireStaticEvents() {
         "Once published, students will be able to attempt it.\n" +
         "You can still edit it after publishing."
       );
-      
+
       if (!confirmed) return;
-      
+
+      const draft = state.quizDrafts.find((d) => d.id === targetDraftId);
+      const antiCheatEnabled = askAntiCheatChoice(draft?.antiCheatEnabled !== false);
+
       const btn = qs("#publishCurrentDraftBtn");
       btn.disabled = true;
       btn.textContent = "Publishing...";
-      
-      await publishDraft(targetDraftId);
+
+      await publishDraft(targetDraftId, { antiCheatEnabled });
       await refreshData();
       
       alert("✓ Quiz published successfully!");
@@ -2003,6 +2022,7 @@ function wireDynamicEvents() {
       qs("#quizDuration").value = d.durationMin || 10;
       qs("#quizAttemptLimit").value = d.attemptLimit || 1;
       qs("#quizAntiCheat").checked = d.antiCheatEnabled !== false;
+      qs("#quizAntiCheatLimit").value = d.antiCheatLimit || 3;
       state.quizQuestions = (d.questions || []).map(normalizeQuestion);
       state.activeQuestionIndex = 0;
       state.draftDirty = false;
@@ -2021,11 +2041,14 @@ function wireDynamicEvents() {
         "Once published, students will be able to attempt it."
       );
       if (!confirmed) return;
-      
+
+      const draft = state.quizDrafts.find((d) => d.id === btn.dataset.publishDraft);
+      const antiCheatEnabled = askAntiCheatChoice(draft?.antiCheatEnabled !== false);
+
       try {
         btn.disabled = true;
         btn.textContent = "Publishing...";
-        await publishDraft(btn.dataset.publishDraft);
+        await publishDraft(btn.dataset.publishDraft, { antiCheatEnabled });
         await refreshData();
         alert("✓ Quiz published successfully!");
       } catch (err) {
@@ -2058,6 +2081,7 @@ function wireDynamicEvents() {
       qs("#quizDuration").value = row.durationMin;
       qs("#quizAttemptLimit").value = row.attemptLimit || 1;
       qs("#quizAntiCheat").checked = row.antiCheatEnabled !== false;
+      qs("#quizAntiCheatLimit").value = row.antiCheatLimit || 3;
       state.quizQuestions = (row.questions || []).map(normalizeQuestion);
       state.activeQuestionIndex = 0;
       state.draftDirty = false;
@@ -2074,10 +2098,27 @@ function wireDynamicEvents() {
       const row = state.quizzes.find((x) => x.id === btn.dataset.togglePublish);
       if (!row) return;
       const nextStatus = row.status === "published" ? "draft" : "published";
-      await updateDoc(doc(db, "quizzes", row.id), {
+      const update = {
         status: nextStatus,
         acceptingAttempts: nextStatus === "published",
         startedAt: nextStatus === "published" ? serverTimestamp() : null,
+        updatedAt: serverTimestamp(),
+      };
+      if (nextStatus === "published") {
+        update.antiCheatEnabled = askAntiCheatChoice(row.antiCheatEnabled !== false);
+      }
+      await updateDoc(doc(db, "quizzes", row.id), update);
+      await refreshData();
+    });
+  });
+
+  qsa("[data-toggle-anticheat]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const row = state.quizzes.find((x) => x.id === btn.dataset.toggleAnticheat);
+      if (!row) return;
+      const next = !(row.antiCheatEnabled !== false);
+      await updateDoc(doc(db, "quizzes", row.id), {
+        antiCheatEnabled: next,
         updatedAt: serverTimestamp(),
       });
       await refreshData();

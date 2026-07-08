@@ -178,6 +178,10 @@ function renderQuizzesList() {
 
 function clearQuizRuntime() {
   if (quizRuntime?.timer) clearInterval(quizRuntime.timer);
+  if (quizRuntime?.tickHandler) {
+    document.removeEventListener("visibilitychange", quizRuntime.tickHandler);
+    window.removeEventListener("focus", quizRuntime.tickHandler);
+  }
   detachAntiCheat();
   quizRuntime = null;
 }
@@ -187,19 +191,25 @@ function getQuestionTimerSeconds(question) {
 }
 
 function formatTimerMinutes(totalSeconds) {
-  const s = Math.max(0, Number(totalSeconds) || 0);
+  const s = Math.max(0, Math.ceil(Number(totalSeconds) || 0));
   const m = Math.floor(s / 60);
   const sec = s % 60;
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
 
+function getAntiCheatLimit(quiz) {
+  const n = Number(quiz?.antiCheatLimit);
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 3;
+}
+
 function attachAntiCheat() {
   if (!quizRuntime?.quiz?.antiCheatEnabled) return;
+  const limit = getAntiCheatLimit(quizRuntime.quiz);
   const reportViolation = (reason) => {
     if (!quizRuntime) return;
     quizRuntime.violations = Number(quizRuntime.violations || 0) + 1;
-    qs("#quizAntiCheatMsg").textContent = `Anti-cheat warning ${quizRuntime.violations}/3: ${reason} Switching/turning off screen can stop your quiz.`;
-    if (quizRuntime.violations >= 3) {
+    qs("#quizAntiCheatMsg").textContent = `Anti-cheat warning ${quizRuntime.violations}/${limit}: ${reason} Switching/turning off screen can stop your quiz.`;
+    if (quizRuntime.violations >= limit) {
       qs("#quizAntiCheatMsg").textContent = "Quiz stopped and auto-submitted: repeated screen/tab switching detected.";
       submitQuiz({ skipConfirm: true, reason: "anti_cheat" });
     }
@@ -247,6 +257,7 @@ function startQuiz(quizId) {
   if (!quiz.acceptingAttempts) return alert("Teacher has not started this quiz yet.");
   if (attempts >= Number(quiz.attemptLimit || 1)) return alert("Attempt limit reached.");
   const totalSeconds = Number(quiz.durationMin || 1) * 60;
+  const startedAtMs = Date.now();
   quizRuntime = {
     quiz,
     idx: 0,
@@ -256,32 +267,49 @@ function startQuiz(quizId) {
     questionSecondsLeft: quiz.questions.map((q) => getQuestionTimerSeconds(q)),
     violations: 0,
     secondsLeft: totalSeconds,
+    endAtMs: startedAtMs + totalSeconds * 1000,
+    lastTickMs: startedAtMs,
     timer: null,
+    tickHandler: null,
   };
   renderQuizAttemptArea();
   attachAntiCheat();
-  quizRuntime.timer = setInterval(() => {
-    quizRuntime.secondsLeft -= 1;
-    if (quizRuntime.questionSecondsLeft[quizRuntime.idx] > 0) {
-      quizRuntime.questionSecondsLeft[quizRuntime.idx] -= 1;
+  // Wall-clock based tick: browsers throttle/pause setInterval in background
+  // tabs (especially mobile), so remaining time is always recomputed from
+  // Date.now() against a fixed deadline instead of counting interval fires.
+  const tick = () => {
+    if (!quizRuntime) return;
+    const now = Date.now();
+    const elapsedSec = Math.max(0, (now - quizRuntime.lastTickMs) / 1000);
+    quizRuntime.lastTickMs = now;
+    quizRuntime.secondsLeft = Math.max(0, (quizRuntime.endAtMs - now) / 1000);
+    const i = quizRuntime.idx;
+    const hasQuestionTimer = getQuestionTimerSeconds(quizRuntime.quiz.questions[i]) > 0;
+    if (hasQuestionTimer && quizRuntime.questionSecondsLeft[i] > 0) {
+      quizRuntime.questionSecondsLeft[i] = Math.max(0, quizRuntime.questionSecondsLeft[i] - elapsedSec);
     }
     if (quizRuntime.secondsLeft <= 0) {
       submitQuiz({ skipConfirm: true, reason: "timer" });
       return;
     }
-    if (quizRuntime.questionSecondsLeft[quizRuntime.idx] === 0 && getQuestionTimerSeconds(quizRuntime.quiz.questions[quizRuntime.idx]) > 0) {
-      if (quizRuntime.idx < quizRuntime.quiz.questions.length - 1) {
-        quizRuntime.idx += 1;
+    if (hasQuestionTimer && quizRuntime.questionSecondsLeft[i] <= 0) {
+      if (i < quizRuntime.quiz.questions.length - 1) {
+        quizRuntime.idx = i + 1;
         renderQuizAttemptArea();
       } else {
         submitQuiz({ skipConfirm: true, reason: "question_timer" });
       }
     } else {
-      qs("#quizTimeLeft").textContent = formatTimerMinutes(quizRuntime.secondsLeft);
+      const totalEl = qs("#quizTimeLeft");
+      if (totalEl) totalEl.textContent = formatTimerMinutes(quizRuntime.secondsLeft);
       const qTimer = qs("#questionTimeLeft");
-      if (qTimer) qTimer.textContent = formatTimerMinutes(quizRuntime.questionSecondsLeft[quizRuntime.idx]);
+      if (qTimer) qTimer.textContent = formatTimerMinutes(quizRuntime.questionSecondsLeft[i]);
     }
-  }, 1000);
+  };
+  quizRuntime.tickHandler = tick;
+  quizRuntime.timer = setInterval(tick, 500);
+  document.addEventListener("visibilitychange", tick);
+  window.addEventListener("focus", tick);
 }
 
 function renderQuizAttemptArea() {
@@ -304,6 +332,11 @@ function renderQuizAttemptArea() {
         <span class="quiz-option-text">${escapeHtml(opt)}</span>
       </label>`;
     }).join("");
+  const total = quizRuntime.quiz.questions.length;
+  const isFirst = quizRuntime.idx === 0;
+  const isLast = quizRuntime.idx === total - 1;
+  const answeredCount = quizRuntime.answers.filter((a) => a !== null && String(a).trim() !== "").length;
+  const progressPct = Math.round(((quizRuntime.idx + 1) / total) * 100);
   qs("#quizAttemptArea").innerHTML = `<article class="item quiz-attempt-card">
     <div class="quiz-attempt-head">
       <h4>${escapeHtml(quizRuntime.quiz.title)}</h4>
@@ -312,17 +345,19 @@ function renderQuizAttemptArea() {
         ${getQuestionTimerSeconds(q) > 0 ? `<span class="chip chip-amber">Question Time: <span id="questionTimeLeft">${formatTimerMinutes(quizRuntime.questionSecondsLeft[quizRuntime.idx])}</span></span>` : ""}
       </div>
     </div>
+    <div class="quiz-progress-track"><div class="quiz-progress-fill" style="width:${progressPct}%"></div></div>
+    <p class="quiz-attempt-qno"><strong>Question ${quizRuntime.idx + 1} of ${total}</strong> <span class="meta">| ${answeredCount}/${total} answered</span></p>
     <p id="quizAntiCheatMsg" class="bad"></p>
-    <p class="meta">Warning: If you switch tab/app or turn off/minimize screen repeatedly, quiz can be stopped automatically.</p>
+    ${quizRuntime.quiz.antiCheatEnabled ? `<p class="meta">Warning: If you switch tab/app or turn off/minimize screen repeatedly, quiz can be stopped automatically.</p>` : ""}
     ${q.type !== "theory" && quizRuntime.lockedMcq[quizRuntime.idx] ? "<p class='meta'>Option locked for this question (one-time selection).</p>" : ""}
-    <p class="quiz-attempt-qno"><strong>Q${quizRuntime.idx + 1}/${quizRuntime.quiz.questions.length}</strong></p>
     <div class="quiz-attempt-prompt">${prompt}</div>
     ${q.imageDataUrl ? `<p><img src="${q.imageDataUrl}" alt="question image" class="quiz-attempt-image"></p>` : ""}
     <div class="quiz-options-list">${options}</div>
     <div class="quiz-attempt-actions">
-      <button id="prevQBtn" type="button">⬅ Previous</button>
-      <button id="nextQBtn" type="button">Next ➡</button>
-      <button id="submitQuizBtn" type="button" class="quiz-submit-btn">✅ Submit Quiz</button>
+      <button id="prevQBtn" type="button" ${isFirst ? "disabled" : ""}>⬅ Previous</button>
+      ${isLast
+        ? `<button id="submitQuizBtn" type="button" class="quiz-submit-btn">✅ Submit Quiz</button>`
+        : `<button id="nextQBtn" type="button" class="quiz-next-btn">Next ➡</button>`}
     </div>
   </article>`;
   if (q.type === "theory") {
@@ -337,15 +372,15 @@ function renderQuizAttemptArea() {
       renderQuizAttemptArea();
     }));
   }
-  qs("#prevQBtn").addEventListener("click", () => {
+  qs("#prevQBtn")?.addEventListener("click", () => {
     if (quizRuntime.idx > 0) quizRuntime.idx -= 1;
     renderQuizAttemptArea();
   });
-  qs("#nextQBtn").addEventListener("click", () => {
+  qs("#nextQBtn")?.addEventListener("click", () => {
     if (quizRuntime.idx < quizRuntime.quiz.questions.length - 1) quizRuntime.idx += 1;
     renderQuizAttemptArea();
   });
-  qs("#submitQuizBtn").addEventListener("click", submitQuiz);
+  qs("#submitQuizBtn")?.addEventListener("click", () => submitQuiz());
 }
 
 async function updateProgress(classId, delta) {
@@ -371,7 +406,15 @@ async function submitQuiz({ skipConfirm = false } = {}) {
   if (!quizRuntime || quizRuntime.submitting) return;
   const runtime = quizRuntime;
   if (!skipConfirm) {
-    const ok = confirm("Are you sure you want to submit this quiz now? You cannot edit answers after submission.");
+    const total = runtime.quiz.questions.length;
+    const answered = runtime.answers.filter((a) => a !== null && String(a).trim() !== "").length;
+    const unanswered = total - answered;
+    const ok = confirm(
+      "Submit Quiz?\n\n" +
+      `Answered: ${answered}/${total}` +
+      (unanswered > 0 ? `\n⚠ Not answered: ${unanswered} question(s)` : "\nAll questions answered ✓") +
+      "\n\nYou cannot change your answers after submission."
+    );
     if (!ok) return;
   }
   runtime.submitting = true;
@@ -465,7 +508,8 @@ async function submitQuiz({ skipConfirm = false } = {}) {
       locked: shouldLock,
     }];
     renderQuizzesList();
-    qs("#quizAttemptArea").innerHTML = "<p class='ok'>Quiz submitted successfully.</p>";
+    qs("#quizAttemptArea").innerHTML = "<p class='ok'>✓ Quiz submitted successfully. Your answers have been recorded.</p>";
+    alert("✓ Quiz submitted successfully!\nYour answers have been recorded.");
     await loadGamification();
   } catch (err) {
     runtime.submitting = false;

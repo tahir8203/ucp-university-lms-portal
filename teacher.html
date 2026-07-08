@@ -140,6 +140,10 @@
                 <input id="quizDuration" type="number" min="1" placeholder="Duration (minutes)" required />
                 <input id="quizAttemptLimit" type="number" min="1" value="1" placeholder="Attempt limit per student" required />
                 <label class="quiz-checkbox-row"><input id="quizAntiCheat" type="checkbox" checked /> Enable anti-cheat (tab switch/copy protection)</label>
+                <label class="quiz-anticheat-limit">Anti-cheat warnings allowed before auto-submit
+                  <input id="quizAntiCheatLimit" type="number" min="1" max="10" value="3" />
+                  <span class="meta">Higher = more forgiving (accidental screen-off, calls, etc.)</span>
+                </label>
                 <button id="addQuestionBtn" type="button" class="quiz-add-question-btn">+ Add Question</button>
               </form>
               <p id="draftStatus" class="message quiz-draft-status"></p>

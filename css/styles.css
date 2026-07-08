@@ -2197,11 +2197,61 @@ thead th {
 }
 
 .quiz-submit-btn {
-  grid-column: 1 / -1;
   background: linear-gradient(135deg, #169a5a, #0e7a44) !important;
   border-color: #0e7a44 !important;
   color: #fff !important;
   font-weight: 700;
+}
+
+.quiz-next-btn {
+  background: linear-gradient(135deg, var(--primary), var(--primary-strong)) !important;
+  border-color: var(--primary-strong) !important;
+  color: #fff !important;
+  font-weight: 700;
+}
+
+.quiz-progress-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: #e4ecf7;
+  overflow: hidden;
+  margin: 10px 0 4px;
+}
+
+.quiz-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--primary), var(--accent, #14a084));
+  transition: width 200ms ease;
+}
+
+button.anticheat-on {
+  background: #e8faef !important;
+  border-color: #bfe9ce !important;
+  color: #15733a !important;
+}
+
+button.anticheat-off {
+  background: #f2f4f7 !important;
+  border-color: #d3dce8 !important;
+  color: #56657a !important;
+}
+
+.quiz-anticheat-limit {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 4px;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.quiz-anticheat-limit input {
+  max-width: 120px;
+}
+
+.quiz-anticheat-limit .meta {
+  font-weight: 400;
 }
 
 @media (max-width: 520px) {
