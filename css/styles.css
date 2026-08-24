@@ -2236,18 +2236,18 @@ thead th {
   }
 
   .app-auth .app-footer {
-    padding: 4px 8px 5px;
-    gap: 12px;
+    padding: 5px 8px 7px;
+    gap: 14px;
   }
 
   .app-auth .app-footer-photo {
-    width: 54px;
-    height: 54px;
+    width: 72px;
+    height: 72px;
   }
 
   .app-auth .app-footer p {
-    font-size: 0.78rem;
-    line-height: 1.25;
+    font-size: 0.9rem;
+    line-height: 1.3;
   }
 }
 
