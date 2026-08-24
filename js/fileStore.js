@@ -12,6 +12,7 @@ import {
 } from "./firebase.js";
 
 const CHUNK_SIZE = 700000;
+const CHUNKS_PER_BATCH = 10;
 
 function toDocSafeId(input) {
   return String(input || "")
@@ -57,7 +58,7 @@ export async function uploadFileToFirestore(file, context = {}) {
   let start = 0;
   while (start < chunks.length) {
     const batch = writeBatch(db);
-    const end = Math.min(start + 400, chunks.length);
+    const end = Math.min(start + CHUNKS_PER_BATCH, chunks.length);
     for (let i = start; i < end; i += 1) {
       const chunkRef = doc(db, "filePayloads", toDocSafeId(fileId), "chunks", String(i).padStart(4, "0"));
       batch.set(chunkRef, {

@@ -29,6 +29,14 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/assignments/$(assignmentId)).data.teacherId == request.auth.uid;
     }
 
+    function teacherOwnsLectureFile(fileId) {
+      return isTeacher()
+        && exists(/databases/$(database)/documents/filePayloads/$(fileId))
+        && get(/databases/$(database)/documents/filePayloads/$(fileId)).data.context is map
+        && get(/databases/$(database)/documents/filePayloads/$(fileId)).data.context.module == "lecture"
+        && get(/databases/$(database)/documents/filePayloads/$(fileId)).data.context.teacherId == request.auth.uid;
+    }
+
     match /{document=**} {
       allow read, write: if isAdmin();
     }
@@ -204,6 +212,7 @@ service cloud.firestore {
       allow create: if true;
       allow update: if false;
       allow delete: if isAdmin()
+        || teacherOwnsLectureFile(fileId)
         || (
           isTeacher()
           && resource.data.context is map
@@ -216,6 +225,7 @@ service cloud.firestore {
         allow create: if true;
         allow update: if false;
         allow delete: if isAdmin()
+          || teacherOwnsLectureFile(fileId)
           || (
             isTeacher()
             && get(/databases/$(database)/documents/filePayloads/$(fileId)).data.context is map

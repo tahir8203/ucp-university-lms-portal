@@ -1,5 +1,5 @@
 import { requireStaffRole, logoutStaff, generateStudentPassword, setStudentPasswordRecord } from "./auth.js";
-import { parseCSV, qs, qsa, fmtDate, escapeHtml, studentKey } from "./utils.js";
+import { parseCSV, qs, qsa, fmtDate, escapeHtml, studentKey, formatFileSize, withLectureSequence } from "./utils.js";
 import {
   db,
   storage,
@@ -16,7 +16,7 @@ import {
   query,
   where,
   ref,
-  uploadBytes,
+  uploadBytesResumable,
   getDownloadURL,
   deleteObject,
 } from "./firebase.js";
@@ -47,6 +47,8 @@ const state = {
   evaluationClassFilter: "",
   lastEnrollCredentials: [],
 };
+
+const MAX_LECTURE_FILE_BYTES = 10 * 1024 * 1024;
 
 function normalizeMcqKey(raw) {
   const n = Number(raw);
@@ -125,6 +127,93 @@ function renderQuizBuilderStats() {
 function setClassEnrollMsg(text) {
   const el = qs("#classEnrollMsg");
   if (el) el.textContent = text;
+}
+
+function setLectureUploadMsg(text, tone = "") {
+  const el = qs("#lectureUploadMsg");
+  if (!el) return;
+  el.textContent = text;
+  el.classList.toggle("ok", tone === "ok");
+  el.classList.toggle("bad", tone === "danger");
+}
+
+function promiseWithTimeout(promise, ms, label) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} timed out. A backup upload will be tried.`)), ms);
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
+function safeStorageFileName(name) {
+  return String(name || "lecture-file").replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+function uploadLectureFileToStorage(storageRef, file, onProgress) {
+  const task = uploadBytesResumable(storageRef, file);
+  return new Promise((resolve, reject) => {
+    let timer = null;
+    let settled = false;
+    const armTimeout = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        task.cancel();
+        reject(new Error("Firebase Storage made no progress for 30 seconds."));
+      }, 30000);
+    };
+    armTimeout();
+    task.on(
+      "state_changed",
+      (snapshot) => {
+        armTimeout();
+        const total = Number(snapshot.totalBytes || file.size || 1);
+        const percent = Math.min(100, Math.round((Number(snapshot.bytesTransferred || 0) / total) * 100));
+        onProgress?.(percent);
+      },
+      (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(error);
+      },
+      () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(task.snapshot);
+      }
+    );
+  });
+}
+
+function uploadErrorText(error) {
+  return String(error?.message || error?.code || "Unknown upload error").replace(/^FirebaseError:\s*/i, "");
+}
+
+function nextLectureNumber(classId, excludeLectureId = "") {
+  const numbers = state.lectures
+    .filter((lecture) => lecture.classId === classId && lecture.id !== excludeLectureId)
+    .map((lecture) => Number(lecture.lectureNumber || lecture.displayLectureNumber || 0))
+    .filter((value) => Number.isInteger(value) && value > 0);
+  return (numbers.length ? Math.max(...numbers) : 0) + 1;
+}
+
+function updateLectureFileSummary() {
+  const files = Array.from(qs("#lectureFiles")?.files || []);
+  const summary = qs("#lectureFileSummary");
+  if (!summary) return;
+  if (!files.length) {
+    summary.textContent = "Any file type is allowed. Maximum 10MB per file.";
+    summary.classList.remove("bad");
+    return;
+  }
+  const oversized = files.filter((file) => file.size > MAX_LECTURE_FILE_BYTES);
+  summary.textContent = files.map((file) => `${file.name} (${formatFileSize(file.size)})`).join(" • ");
+  summary.classList.toggle("bad", oversized.length > 0);
 }
 
 function escapeCsvCell(value) {
@@ -494,7 +583,9 @@ async function refreshData() {
   ]);
 
   state.classes = classSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-  state.lectures = lectureSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  state.lectures = withLectureSequence(lectureSnap.docs.map((d) => ({ id: d.id, ...d.data() })))
+    .sort((a, b) => classNameById(a.classId).localeCompare(classNameById(b.classId))
+      || Number(a.displayLectureNumber || 0) - Number(b.displayLectureNumber || 0));
   state.quizzes = quizSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.quizNumber || 0) - (b.quizNumber || 0));
   state.quizDrafts = draftSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
   state.assignments = assignmentSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.assignmentNumber || 0) - (b.assignmentNumber || 0));
@@ -552,12 +643,16 @@ function renderLectures() {
   qs("#lecturesList").innerHTML = state.lectures
     .map((l) => {
       const klass = state.classes.find((c) => c.id === l.classId);
-      const files = (l.files || []).map((f) => `<a href="${fileHref(f)}" target="_blank" rel="noopener">${escapeHtml(f.name)}</a>`).join(" | ");
+      const lectureNumber = Number(l.lectureNumber || l.displayLectureNumber || 1);
+      const files = (l.files || []).map((f) => `<li>
+        <a href="${escapeHtml(fileHref(f))}" target="_blank" rel="noopener">${escapeHtml(f.name)}</a>
+        <span class="meta">${escapeHtml(formatFileSize(f.size))}</span>
+      </li>`).join("");
       return `<article class="item">
-        <h4>${escapeHtml(l.title)}</h4>
+        <h4>Lecture ${lectureNumber}: ${escapeHtml(l.title)}</h4>
         <p class="meta">${escapeHtml(klass?.name || l.classId)} | Date: ${escapeHtml(l.date)}</p>
-        <p>${files || "No files"}</p>
-        <p>${l.videoLink ? `<a href="${l.videoLink}" target="_blank" rel="noopener">Video Link</a>` : "No video link"}</p>
+        ${files ? `<ul class="lecture-file-list">${files}</ul>` : "<p>No files</p>"}
+        <p>${l.videoLink ? `<a href="${escapeHtml(l.videoLink)}" target="_blank" rel="noopener">Video Link</a>` : "No video link"}</p>
         <div class="inline-actions">
           <button data-edit-lecture="${l.id}" type="button">Edit</button>
           <button data-del-lecture="${l.id}" type="button">Delete</button>
@@ -1413,6 +1508,7 @@ function wireStaticEvents() {
     window.location.href = "./index.html";
   });
   qs("#downloadEnrollCredentialsBtn")?.addEventListener("click", downloadEnrollCredentialsCsv);
+  qs("#lectureFiles")?.addEventListener("change", updateLectureFileSummary);
 
   qs("#classForm").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -1525,43 +1621,99 @@ function wireStaticEvents() {
     const date = qs("#lectureDate").value;
     const videoLink = qs("#lectureVideo").value.trim();
     const files = Array.from(qs("#lectureFiles").files || []);
+    const uploadBtn = qs("#uploadLectureBtn");
     const uploaded = [];
 
-    for (const file of files) {
-      try {
-        const storageRef = ref(storage, `teachers/${state.me.uid}/classes/${classId}/lectures/${Date.now()}_${file.name}`);
-        await uploadBytes(storageRef, file);
-        const url = await getDownloadURL(storageRef);
-        uploaded.push({ name: file.name, url, path: storageRef.fullPath, type: file.type, size: file.size, source: "storage" });
-      } catch {
-        const firestoreFile = await uploadFileToFirestore(file, { module: "lecture", teacherId: state.me.uid, classId });
-        uploaded.push(firestoreFile);
-      }
+    if (!classId || !title || !date) {
+      setLectureUploadMsg("Select a class and enter the lecture title and date.", "danger");
+      return;
+    }
+    const oversized = files.find((file) => file.size > MAX_LECTURE_FILE_BYTES);
+    if (oversized) {
+      setLectureUploadMsg(`${oversized.name} is ${formatFileSize(oversized.size)}. Maximum size is 10MB per file.`, "danger");
+      return;
     }
 
-    if (lectureId) {
-      const prev = state.lectures.find((l) => l.id === lectureId);
-      await updateDoc(doc(db, "lectures", lectureId), {
-        classId,
-        title,
-        date,
-        videoLink,
-        files: [...(prev?.files || []), ...uploaded],
-      });
-    } else {
-      await addDoc(collection(db, "lectures"), {
-        teacherId: state.me.uid,
-        classId,
-        title,
-        date,
-        videoLink,
-        files: uploaded,
-        createdAt: serverTimestamp(),
-      });
+    const originalButtonText = uploadBtn.textContent;
+    uploadBtn.disabled = true;
+    try {
+      for (let index = 0; index < files.length; index += 1) {
+        const file = files[index];
+        uploadBtn.textContent = `Uploading ${index + 1}/${files.length}...`;
+        setLectureUploadMsg(`Uploading ${file.name} (${formatFileSize(file.size)})...`);
+        let storageError = null;
+        let storageRef = null;
+        try {
+          const token = `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+          storageRef = ref(storage, `teachers/${state.me.uid}/classes/${classId}/lectures/${token}_${safeStorageFileName(file.name)}`);
+          await uploadLectureFileToStorage(storageRef, file, (percent) => {
+            uploadBtn.textContent = `Uploading ${index + 1}/${files.length} (${percent}%)`;
+            setLectureUploadMsg(`Uploading ${file.name}: ${percent}%`);
+          });
+          const url = await promiseWithTimeout(getDownloadURL(storageRef), 15000, "Download URL request");
+          uploaded.push({ name: file.name, url, path: storageRef.fullPath, type: file.type || "application/octet-stream", size: file.size, source: "storage" });
+        } catch (error) {
+          storageError = error;
+          if (storageRef) await deleteObject(storageRef).catch(() => {});
+          setLectureUploadMsg(`${file.name}: Firebase Storage was unavailable; trying the secure backup upload...`);
+          try {
+            const firestoreFile = await uploadFileToFirestore(file, {
+              module: "lecture",
+              teacherId: state.me.uid,
+              classId,
+            });
+            uploaded.push(firestoreFile);
+          } catch (fallbackError) {
+            throw new Error(`Could not upload ${file.name}. Storage: ${uploadErrorText(storageError)} Backup: ${uploadErrorText(fallbackError)}`);
+          }
+        }
+      }
+
+      const previous = lectureId ? state.lectures.find((lecture) => lecture.id === lectureId) : null;
+      const lectureNumber = previous?.classId === classId
+        ? Number(previous.lectureNumber || previous.displayLectureNumber || nextLectureNumber(classId, lectureId))
+        : nextLectureNumber(classId, lectureId);
+
+      if (lectureId) {
+        await updateDoc(doc(db, "lectures", lectureId), {
+          classId,
+          lectureNumber,
+          title,
+          date,
+          videoLink,
+          files: [...(previous?.files || []), ...uploaded],
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        await addDoc(collection(db, "lectures"), {
+          teacherId: state.me.uid,
+          classId,
+          lectureNumber,
+          title,
+          date,
+          videoLink,
+          files: uploaded,
+          createdAt: serverTimestamp(),
+        });
+      }
+
+      e.target.reset();
+      qs("#lectureId").value = "";
+      uploadBtn.textContent = "Upload Lecture";
+      updateLectureFileSummary();
+      await refreshData();
+      setLectureUploadMsg(`Lecture ${lectureNumber} ${lectureId ? "updated" : "uploaded"} successfully${uploaded.length ? ` with ${uploaded.length} file(s)` : ""}.`, "ok");
+    } catch (error) {
+      for (const file of uploaded) {
+        if (file.path) await deleteObject(ref(storage, file.path)).catch(() => {});
+        if (file.fileId) await deleteFirestorePayload(file.fileId).catch(() => {});
+      }
+      console.error("Lecture upload failed:", error);
+      setLectureUploadMsg(uploadErrorText(error), "danger");
+    } finally {
+      uploadBtn.disabled = false;
+      if (uploadBtn.textContent.startsWith("Uploading")) uploadBtn.textContent = originalButtonText;
     }
-    e.target.reset();
-    qs("#lectureId").value = "";
-    await refreshData();
   });
 
   qs("#addQuestionBtn").addEventListener("click", () => {
@@ -1992,6 +2144,8 @@ function wireDynamicEvents() {
       qs("#lectureTitle").value = row.title;
       qs("#lectureDate").value = row.date;
       qs("#lectureVideo").value = row.videoLink || "";
+      qs("#uploadLectureBtn").textContent = "Update Lecture";
+      setLectureUploadMsg(`Editing Lecture ${row.lectureNumber || row.displayLectureNumber || ""}. Choose additional files only if needed.`);
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
   });
@@ -2002,8 +2156,8 @@ function wireDynamicEvents() {
       if (!row) return;
       if (!confirm("Delete this lecture?")) return;
       for (const f of row.files || []) {
-        if (!f.path) continue;
-        await deleteObject(ref(storage, f.path)).catch(() => {});
+        if (f.path) await deleteObject(ref(storage, f.path)).catch(() => {});
+        if (f.fileId) await deleteFirestorePayload(f.fileId).catch(() => {});
       }
       await deleteDoc(doc(db, "lectures", row.id));
       await refreshData();

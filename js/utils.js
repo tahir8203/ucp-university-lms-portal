@@ -12,6 +12,58 @@ export function fmtDate(value) {
   return d.toLocaleString();
 }
 
+export function formatFileSize(bytes) {
+  const size = Number(bytes || 0);
+  if (!Number.isFinite(size) || size <= 0) return "0 bytes";
+  if (size < 1024) return `${size} bytes`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function lectureSortTime(row) {
+  const seconds = Number(row?.createdAt?.seconds ?? row?.createdAt?._seconds ?? 0);
+  if (Number.isFinite(seconds) && seconds > 0) return seconds * 1000;
+  const date = Date.parse(row?.date || "");
+  return Number.isFinite(date) ? date : 0;
+}
+
+export function withLectureSequence(items = []) {
+  const groups = new Map();
+  items.forEach((item) => {
+    const classId = String(item?.classId || "");
+    if (!groups.has(classId)) groups.set(classId, []);
+    groups.get(classId).push(item);
+  });
+
+  const numbered = [];
+  groups.forEach((group) => {
+    const chronological = [...group].sort((a, b) =>
+      lectureSortTime(a) - lectureSortTime(b) || String(a.id || "").localeCompare(String(b.id || ""))
+    );
+    const reserved = new Set(chronological
+      .map((row) => Number(row.lectureNumber))
+      .filter((value) => Number.isInteger(value) && value > 0));
+    const assigned = new Set();
+    let next = 1;
+
+    chronological.forEach((row) => {
+      let number = Number(row.lectureNumber);
+      if (!Number.isInteger(number) || number < 1 || assigned.has(number)) {
+        while (reserved.has(next) || assigned.has(next)) next += 1;
+        number = next;
+      }
+      assigned.add(number);
+      numbered.push({ ...row, displayLectureNumber: number });
+    });
+  });
+
+  return numbered.sort((a, b) =>
+    String(a.classId || "").localeCompare(String(b.classId || ""))
+    || Number(a.displayLectureNumber || 0) - Number(b.displayLectureNumber || 0)
+    || lectureSortTime(a) - lectureSortTime(b)
+  );
+}
+
 export function studentKey(rollNo, name) {
   return `${(rollNo || "").trim().toLowerCase()}__${(name || "").trim().toLowerCase()}`;
 }

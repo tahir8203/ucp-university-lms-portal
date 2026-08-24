@@ -1,6 +1,6 @@
 import { requireStudentSession, logoutStudent, changeStudentPassword } from "./auth.js";
 import { EVALUATION_SECTIONS, BADGE_RULES, POINTS } from "./constants.js";
-import { qs, qsa, fmtDate, escapeHtml } from "./utils.js";
+import { qs, qsa, fmtDate, escapeHtml, formatFileSize, withLectureSequence } from "./utils.js";
 import {
   db,
   storage,
@@ -22,7 +22,7 @@ import {
   uploadBytes,
   getDownloadURL,
 } from "./firebase.js";
-import { uploadFileToFirestore } from "./fileStore.js";
+import { uploadFileToFirestore, fileHref } from "./fileStore.js";
 
 const state = {
   student: null,
@@ -87,16 +87,20 @@ async function loadLectures() {
     const snap = await getDocs(query(collection(db, "lectures"), where("classId", "==", id)));
     rows.push(...snap.docs.map((d) => ({ id: d.id, ...d.data() })));
   }
-  rows.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-  qs("#studentLecturesList").innerHTML = rows
+  const numberedRows = withLectureSequence(rows);
+  qs("#studentLecturesList").innerHTML = numberedRows
     .map((l) => {
       const className = state.classes.find((c) => c.id === l.classId)?.name || l.classId;
-      const files = (l.files || []).map((f) => `<a href="${f.url}" target="_blank" rel="noopener">${escapeHtml(f.name)}</a>`).join(" | ");
+      const lectureNumber = Number(l.lectureNumber || l.displayLectureNumber || 1);
+      const files = (l.files || []).map((f) => `<li>
+        <a href="${escapeHtml(fileHref(f))}" target="_blank" rel="noopener">${escapeHtml(f.name)}</a>
+        <span class="meta">${escapeHtml(formatFileSize(f.size))}</span>
+      </li>`).join("");
       return `<article class="item">
-        <h4>${escapeHtml(l.title)}</h4>
+        <h4>Lecture ${lectureNumber}: ${escapeHtml(l.title)}</h4>
         <p class="meta">${escapeHtml(className)} | ${escapeHtml(l.date)}</p>
-        <p>${files || "No files"}</p>
-        <p>${l.videoLink ? `<a href="${l.videoLink}" target="_blank" rel="noopener">Video Link</a>` : "No video link"}</p>
+        ${files ? `<ul class="lecture-file-list">${files}</ul>` : "<p>No files</p>"}
+        <p>${l.videoLink ? `<a href="${escapeHtml(l.videoLink)}" target="_blank" rel="noopener">Video Link</a>` : "No video link"}</p>
       </article>`;
     })
     .join("") || "<p>No lectures available.</p>";

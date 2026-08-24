@@ -1,4 +1,4 @@
-const CACHE_NAME = "university-lms-v7";
+const CACHE_NAME = "university-lms-v8";
 const APP_SHELL = [
   "./",
   "./index.html",

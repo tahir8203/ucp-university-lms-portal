@@ -87,8 +87,13 @@
         <input id="lectureTitle" placeholder="Lecture title" required />
         <input id="lectureDate" type="date" required />
         <input id="lectureVideo" placeholder="Optional video link" />
-        <input id="lectureFiles" type="file" multiple />
-        <button type="submit">Save Lecture</button>
+        <div class="lecture-file-field">
+          <label for="lectureFiles">Lecture file(s)</label>
+          <input id="lectureFiles" type="file" multiple aria-describedby="lectureFileSummary" />
+          <p id="lectureFileSummary" class="meta">Any file type is allowed. Maximum 10MB per file.</p>
+        </div>
+        <button id="uploadLectureBtn" type="submit">Upload Lecture</button>
+        <p id="lectureUploadMsg" class="message lecture-upload-message" role="status" aria-live="polite"></p>
       </form>
       <input id="lectureId" type="hidden" />
       <div id="lecturesList" class="list"></div>
