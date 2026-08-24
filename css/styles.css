@@ -2172,6 +2172,85 @@ thead th {
   }
 }
 
+@media (max-height: 760px) and (min-width: 481px) {
+  .app-auth .auth-shell {
+    padding: 6px 12px 2px;
+  }
+
+  .app-auth .auth-card {
+    padding: 12px 24px;
+  }
+
+  .app-auth .auth-card::before {
+    width: 54px;
+    height: 54px;
+    margin-bottom: 4px;
+  }
+
+  .app-auth .auth-card h1 {
+    margin-bottom: 4px;
+    font-size: 2.1rem;
+  }
+
+  .app-auth .auth-card .subtitle {
+    margin-bottom: 4px;
+    font-size: 0.86rem;
+  }
+
+  .app-auth .auth-card .tabs {
+    margin: 6px 0;
+  }
+
+  .app-auth .auth-card .panel {
+    margin-top: 4px;
+  }
+
+  .app-auth .auth-card form {
+    gap: 4px;
+  }
+
+  .app-auth .auth-card label {
+    font-size: 0.8rem;
+    line-height: 1.15;
+  }
+
+  .app-auth .auth-card input,
+  .app-auth .auth-card select,
+  .app-auth .auth-card button {
+    min-height: 38px;
+    padding: 7px 10px;
+  }
+
+  .app-auth .auth-card details {
+    margin-top: 4px;
+    padding: 5px 8px;
+  }
+
+  .app-auth .auth-card details:not([open]) summary {
+    margin-bottom: 0;
+  }
+
+  .app-auth .auth-card .message:empty {
+    min-height: 0;
+    margin: 0;
+  }
+
+  .app-auth .app-footer {
+    padding: 3px 8px 4px;
+    gap: 10px;
+  }
+
+  .app-auth .app-footer-photo {
+    width: 42px;
+    height: 42px;
+  }
+
+  .app-auth .app-footer p {
+    font-size: 0.66rem;
+    line-height: 1.2;
+  }
+}
+
 /* ============================================================================
    Student quiz attempt — modern, mobile-friendly MCQ layout
 ============================================================================ */
