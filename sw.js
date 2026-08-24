@@ -1,4 +1,4 @@
-const CACHE_NAME = "university-lms-v1";
+const CACHE_NAME = "university-lms-v4";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -20,7 +20,9 @@ const APP_SHELL = [
   "./js/fileStore.js",
   "./js/file-viewer.js",
   "./js/pwa.js",
-  "./assets/icon.svg"
+  "./assets/icon.svg",
+  "./assets/ucp-logo.png",
+  "./assets/Founder.png"
 ];
 
 self.addEventListener("install", (event) => {

@@ -1097,13 +1097,10 @@ summary,
 .auth-card::before {
   content: "";
   display: block;
-  width: 56px;
-  height: 56px;
-  margin-bottom: 16px;
-  border-radius: 18px;
-  background:
-    linear-gradient(145deg, var(--app-primary), #0c78c6 56%, var(--app-accent));
-  box-shadow: 0 12px 26px rgba(13, 94, 168, 0.28);
+  width: 92px;
+  height: 92px;
+  margin-bottom: 12px;
+  background: #ffffff url("../assets/ucp-logo.png") center / contain no-repeat;
 }
 
 .auth-card h1 {
@@ -2032,6 +2029,13 @@ thead th {
 
 /* Login / auth shell -------------------------------------------------------- */
 
+.app-auth {
+  min-height: 100vh;
+  min-height: 100svh;
+  display: grid;
+  grid-template-rows: 1fr auto;
+}
+
 .auth-shell {
   min-height: 100vh;
   display: flex;
@@ -2043,6 +2047,74 @@ thead th {
 .auth-card {
   width: min(440px, 100%);
   padding: 32px clamp(20px, 5vw, 36px);
+}
+
+.app-auth .auth-shell {
+  min-height: 0;
+  padding: 14px 16px 8px;
+}
+
+.app-auth .auth-card {
+  padding: 22px 28px;
+}
+
+.app-auth .auth-card::before {
+  width: 76px;
+  height: 76px;
+  margin-bottom: 8px;
+}
+
+.app-auth .auth-card .tabs {
+  margin: 10px 0;
+}
+
+.app-auth .auth-card .panel {
+  margin-top: 8px;
+}
+
+.app-auth .auth-card form {
+  gap: 6px;
+}
+
+.app-auth .auth-card input,
+.app-auth .auth-card select,
+.app-auth .auth-card button {
+  min-height: 44px;
+}
+
+.app-auth .auth-card details {
+  margin-top: 8px;
+  padding: 8px 10px;
+}
+
+.app-auth .auth-card .message {
+  min-height: 18px;
+  margin: 6px 0 0;
+}
+
+.app-auth .app-footer {
+  width: calc(100% - 24px);
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 8px 12px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: left;
+}
+
+.app-auth .app-footer-photo {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  margin: 0;
+}
+
+.app-auth .app-footer p {
+  max-width: none;
+  white-space: nowrap;
+  line-height: 1.35;
 }
 
 .auth-card .tabs {
@@ -2068,8 +2140,35 @@ thead th {
 }
 
 @media (max-width: 480px) {
-  .auth-card {
-    padding: 24px 18px;
+  .app-auth .auth-shell {
+    padding: 8px 10px 4px;
+  }
+
+  .app-auth .auth-card {
+    padding: 16px;
+  }
+
+  .app-auth .auth-card::before {
+    width: 64px;
+    height: 64px;
+    margin-bottom: 4px;
+  }
+
+  .app-auth .app-footer {
+    width: calc(100% - 12px);
+    padding: 6px 4px 8px;
+    gap: 8px;
+  }
+
+  .app-auth .app-footer-photo {
+    width: 46px;
+    height: 46px;
+  }
+
+  .app-auth .app-footer p {
+    font-size: 0.68rem;
+    line-height: 1.3;
+    white-space: normal;
   }
 }
 
