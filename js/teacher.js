@@ -166,6 +166,7 @@ function uploadLectureFileToStorage(storageRef, file, onProgress) {
   return new Promise((resolve, reject) => {
     let timer = null;
     let settled = false;
+    let lastBytesTransferred = 0;
     const armTimeout = () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
@@ -179,9 +180,13 @@ function uploadLectureFileToStorage(storageRef, file, onProgress) {
     task.on(
       "state_changed",
       (snapshot) => {
-        armTimeout();
+        const bytesTransferred = Number(snapshot.bytesTransferred || 0);
+        if (bytesTransferred > lastBytesTransferred) {
+          lastBytesTransferred = bytesTransferred;
+          armTimeout();
+        }
         const total = Number(snapshot.totalBytes || file.size || 1);
-        const percent = Math.min(100, Math.round((Number(snapshot.bytesTransferred || 0) / total) * 100));
+        const percent = Math.min(100, Math.round((bytesTransferred / total) * 100));
         onProgress?.(percent);
       },
       (error) => {

@@ -1,4 +1,4 @@
-const CACHE_NAME = "university-lms-v8";
+const CACHE_NAME = "university-lms-v9";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -14,7 +14,7 @@ const APP_SHELL = [
   "./js/utils.js",
   "./js/index.js",
   "./js/admin.js",
-  "./js/teacher.js",
+  "./js/teacher.js?v=20260830-2",
   "./js/student.js",
   "./js/certificate.js",
   "./js/fileStore.js",
