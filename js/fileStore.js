@@ -2,7 +2,6 @@ import {
   db,
   serverTimestamp,
   doc,
-  setDoc,
   getDoc,
   collection,
   getDocs,
@@ -45,7 +44,7 @@ export async function uploadFileToFirestore(file, context = {}) {
   }
   const fileId = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
   const metaRef = doc(db, "filePayloads", toDocSafeId(fileId));
-  await setDoc(metaRef, {
+  const metadata = {
     fileId,
     name: file.name,
     type: file.type || "application/octet-stream",
@@ -53,12 +52,19 @@ export async function uploadFileToFirestore(file, context = {}) {
     chunkCount: chunks.length,
     context,
     createdAt: serverTimestamp(),
-  });
+  };
 
   let start = 0;
-  while (start < chunks.length) {
+  let metadataWritten = false;
+  while (!metadataWritten || start < chunks.length) {
     const batch = writeBatch(db);
-    const end = Math.min(start + CHUNKS_PER_BATCH, chunks.length);
+    let writesAvailable = CHUNKS_PER_BATCH;
+    if (!metadataWritten) {
+      batch.set(metaRef, metadata);
+      metadataWritten = true;
+      writesAvailable -= 1;
+    }
+    const end = Math.min(start + writesAvailable, chunks.length);
     for (let i = start; i < end; i += 1) {
       const chunkRef = doc(db, "filePayloads", toDocSafeId(fileId), "chunks", String(i).padStart(4, "0"));
       batch.set(chunkRef, {

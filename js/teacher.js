@@ -49,6 +49,15 @@ const state = {
 };
 
 const MAX_LECTURE_FILE_BYTES = 10 * 1024 * 1024;
+const SMALL_LECTURE_FILE_BYTES = 256 * 1024;
+const MEDIUM_LECTURE_FILE_BYTES = 1024 * 1024;
+
+function lectureUploadIdleTimeout(file) {
+  const size = Number(file?.size || 0);
+  if (size <= SMALL_LECTURE_FILE_BYTES) return 6000;
+  if (size <= MEDIUM_LECTURE_FILE_BYTES) return 10000;
+  return 30000;
+}
 
 function normalizeMcqKey(raw) {
   const n = Number(raw);
@@ -153,6 +162,7 @@ function safeStorageFileName(name) {
 
 function uploadLectureFileToStorage(storageRef, file, onProgress) {
   const task = uploadBytesResumable(storageRef, file);
+  const idleTimeoutMs = lectureUploadIdleTimeout(file);
   return new Promise((resolve, reject) => {
     let timer = null;
     let settled = false;
@@ -162,8 +172,8 @@ function uploadLectureFileToStorage(storageRef, file, onProgress) {
         if (settled) return;
         settled = true;
         task.cancel();
-        reject(new Error("Firebase Storage made no progress for 30 seconds."));
-      }, 30000);
+        reject(new Error(`Firebase Storage made no progress for ${Math.round(idleTimeoutMs / 1000)} seconds.`));
+      }, idleTimeoutMs);
     };
     armTimeout();
     task.on(
@@ -660,6 +670,15 @@ function renderLectures() {
       </article>`;
     })
     .join("") || "<p>No lectures yet.</p>";
+}
+
+async function refreshLecturesOnly() {
+  const lectureSnap = await getDocs(query(collection(db, "lectures"), where("teacherId", "==", state.me.uid)));
+  state.lectures = withLectureSequence(lectureSnap.docs.map((d) => ({ id: d.id, ...d.data() })))
+    .sort((a, b) => classNameById(a.classId).localeCompare(classNameById(b.classId))
+      || Number(a.displayLectureNumber || 0) - Number(b.displayLectureNumber || 0));
+  renderLectures();
+  wireLectureEvents();
 }
 
 function renderQuestionBuilder() {
@@ -1623,6 +1642,7 @@ function wireStaticEvents() {
     const files = Array.from(qs("#lectureFiles").files || []);
     const uploadBtn = qs("#uploadLectureBtn");
     const uploaded = [];
+    let lectureSaved = false;
 
     if (!classId || !title || !date) {
       setLectureUploadMsg("Select a class and enter the lecture title and date.", "danger");
@@ -1650,7 +1670,11 @@ function wireStaticEvents() {
             uploadBtn.textContent = `Uploading ${index + 1}/${files.length} (${percent}%)`;
             setLectureUploadMsg(`Uploading ${file.name}: ${percent}%`);
           });
-          const url = await promiseWithTimeout(getDownloadURL(storageRef), 15000, "Download URL request");
+          const url = await promiseWithTimeout(
+            getDownloadURL(storageRef),
+            Math.min(15000, lectureUploadIdleTimeout(file)),
+            "Download URL request"
+          );
           uploaded.push({ name: file.name, url, path: storageRef.fullPath, type: file.type || "application/octet-stream", size: file.size, source: "storage" });
         } catch (error) {
           storageError = error;
@@ -1674,6 +1698,8 @@ function wireStaticEvents() {
         ? Number(previous.lectureNumber || previous.displayLectureNumber || nextLectureNumber(classId, lectureId))
         : nextLectureNumber(classId, lectureId);
 
+      uploadBtn.textContent = lectureId ? "Updating lecture..." : "Saving lecture...";
+      setLectureUploadMsg(`${lectureId ? "Updating" : "Saving"} lecture details...`);
       if (lectureId) {
         await updateDoc(doc(db, "lectures", lectureId), {
           classId,
@@ -1696,20 +1722,29 @@ function wireStaticEvents() {
           createdAt: serverTimestamp(),
         });
       }
+      lectureSaved = true;
 
       e.target.reset();
       qs("#lectureId").value = "";
       uploadBtn.textContent = "Upload Lecture";
       updateLectureFileSummary();
-      await refreshData();
+      setLectureUploadMsg("Refreshing lecture list...");
+      await refreshLecturesOnly();
       setLectureUploadMsg(`Lecture ${lectureNumber} ${lectureId ? "updated" : "uploaded"} successfully${uploaded.length ? ` with ${uploaded.length} file(s)` : ""}.`, "ok");
     } catch (error) {
-      for (const file of uploaded) {
-        if (file.path) await deleteObject(ref(storage, file.path)).catch(() => {});
-        if (file.fileId) await deleteFirestorePayload(file.fileId).catch(() => {});
+      if (!lectureSaved) {
+        for (const file of uploaded) {
+          if (file.path) await deleteObject(ref(storage, file.path)).catch(() => {});
+          if (file.fileId) await deleteFirestorePayload(file.fileId).catch(() => {});
+        }
       }
       console.error("Lecture upload failed:", error);
-      setLectureUploadMsg(uploadErrorText(error), "danger");
+      setLectureUploadMsg(
+        lectureSaved
+          ? `Lecture saved, but the lecture list could not refresh: ${uploadErrorText(error)}`
+          : uploadErrorText(error),
+        "danger"
+      );
     } finally {
       uploadBtn.disabled = false;
       if (uploadBtn.textContent.startsWith("Uploading")) uploadBtn.textContent = originalButtonText;
@@ -2029,6 +2064,41 @@ function wireStaticEvents() {
   qs("#quizPreviewSemester").addEventListener("change", renderQuizPreview);
 }
 
+function wireLectureEvents() {
+  qsa("[data-edit-lecture]").forEach((btn) => {
+    if (btn.dataset.lectureEventBound === "true") return;
+    btn.dataset.lectureEventBound = "true";
+    btn.addEventListener("click", () => {
+      const row = state.lectures.find((x) => x.id === btn.dataset.editLecture);
+      if (!row) return;
+      qs("#lectureId").value = row.id;
+      qs("#lectureClassId").value = row.classId;
+      qs("#lectureTitle").value = row.title;
+      qs("#lectureDate").value = row.date;
+      qs("#lectureVideo").value = row.videoLink || "";
+      qs("#uploadLectureBtn").textContent = "Update Lecture";
+      setLectureUploadMsg(`Editing Lecture ${row.lectureNumber || row.displayLectureNumber || ""}. Choose additional files only if needed.`);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  });
+
+  qsa("[data-del-lecture]").forEach((btn) => {
+    if (btn.dataset.lectureEventBound === "true") return;
+    btn.dataset.lectureEventBound = "true";
+    btn.addEventListener("click", async () => {
+      const row = state.lectures.find((x) => x.id === btn.dataset.delLecture);
+      if (!row) return;
+      if (!confirm("Delete this lecture?")) return;
+      for (const f of row.files || []) {
+        if (f.path) await deleteObject(ref(storage, f.path)).catch(() => {});
+        if (f.fileId) await deleteFirestorePayload(f.fileId).catch(() => {});
+      }
+      await deleteDoc(doc(db, "lectures", row.id));
+      await refreshLecturesOnly();
+    });
+  });
+}
+
 function wireDynamicEvents() {
   qsa("[data-quiz-analytics-class]").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -2135,34 +2205,7 @@ function wireDynamicEvents() {
     });
   });
 
-  qsa("[data-edit-lecture]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const row = state.lectures.find((x) => x.id === btn.dataset.editLecture);
-      if (!row) return;
-      qs("#lectureId").value = row.id;
-      qs("#lectureClassId").value = row.classId;
-      qs("#lectureTitle").value = row.title;
-      qs("#lectureDate").value = row.date;
-      qs("#lectureVideo").value = row.videoLink || "";
-      qs("#uploadLectureBtn").textContent = "Update Lecture";
-      setLectureUploadMsg(`Editing Lecture ${row.lectureNumber || row.displayLectureNumber || ""}. Choose additional files only if needed.`);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    });
-  });
-
-  qsa("[data-del-lecture]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const row = state.lectures.find((x) => x.id === btn.dataset.delLecture);
-      if (!row) return;
-      if (!confirm("Delete this lecture?")) return;
-      for (const f of row.files || []) {
-        if (f.path) await deleteObject(ref(storage, f.path)).catch(() => {});
-        if (f.fileId) await deleteFirestorePayload(f.fileId).catch(() => {});
-      }
-      await deleteDoc(doc(db, "lectures", row.id));
-      await refreshData();
-    });
-  });
+  wireLectureEvents();
 
   qsa("[data-edit-draft]").forEach((btn) => {
     btn.addEventListener("click", () => {
