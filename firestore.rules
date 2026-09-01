@@ -29,12 +29,20 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/assignments/$(assignmentId)).data.teacherId == request.auth.uid;
     }
 
-    function teacherOwnsLectureFile(fileId) {
+    function teacherOwnsPayloadModule(fileId, moduleName) {
       return isTeacher()
         && exists(/databases/$(database)/documents/filePayloads/$(fileId))
         && get(/databases/$(database)/documents/filePayloads/$(fileId)).data.context is map
-        && get(/databases/$(database)/documents/filePayloads/$(fileId)).data.context.module == "lecture"
+        && get(/databases/$(database)/documents/filePayloads/$(fileId)).data.context.module == moduleName
         && get(/databases/$(database)/documents/filePayloads/$(fileId)).data.context.teacherId == request.auth.uid;
+    }
+
+    function teacherOwnsLectureFile(fileId) {
+      return teacherOwnsPayloadModule(fileId, "lecture");
+    }
+
+    function teacherOwnsHelpingFile(fileId) {
+      return teacherOwnsPayloadModule(fileId, "helpingMaterial");
     }
 
     match /{document=**} {
@@ -83,6 +91,16 @@ service cloud.firestore {
     match /lectures/{lectureId} {
       allow read: if true;
       allow create, update: if isTeacher() && request.resource.data.teacherId == request.auth.uid;
+      allow delete: if isTeacher() && resource.data.teacherId == request.auth.uid;
+    }
+
+    match /helpingMaterials/{materialId} {
+      allow read: if true;
+      allow create, update: if isTeacher()
+        && request.resource.data.teacherId == request.auth.uid
+        && request.resource.data.classId is string
+        && request.resource.data.title is string
+        && request.resource.data.files is list;
       allow delete: if isTeacher() && resource.data.teacherId == request.auth.uid;
     }
 
@@ -213,6 +231,7 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if isAdmin()
         || teacherOwnsLectureFile(fileId)
+        || teacherOwnsHelpingFile(fileId)
         || (
           isTeacher()
           && resource.data.context is map
@@ -226,6 +245,7 @@ service cloud.firestore {
         allow update: if false;
         allow delete: if isAdmin()
           || teacherOwnsLectureFile(fileId)
+          || teacherOwnsHelpingFile(fileId)
           || (
             isTeacher()
             && get(/databases/$(database)/documents/filePayloads/$(fileId)).data.context is map

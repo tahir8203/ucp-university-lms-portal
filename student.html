@@ -34,6 +34,9 @@
           <button class="nav-link" id="student-lectures-tab" data-bs-toggle="tab" data-bs-target="#student-lectures-pane" type="button" role="tab" aria-controls="student-lectures-pane" aria-selected="false">Lectures</button>
         </li>
         <li class="nav-item" role="presentation">
+          <button class="nav-link" id="student-helping-tab" data-bs-toggle="tab" data-bs-target="#student-helping-pane" type="button" role="tab" aria-controls="student-helping-pane" aria-selected="false">Helping Material</button>
+        </li>
+        <li class="nav-item" role="presentation">
           <button class="nav-link" id="student-quizzes-tab" data-bs-toggle="tab" data-bs-target="#student-quizzes-pane" type="button" role="tab" aria-controls="student-quizzes-pane" aria-selected="false">Quizzes</button>
         </li>
         <li class="nav-item" role="presentation">
@@ -67,6 +70,15 @@
       <h2>Lectures</h2>
       <select id="lectureClassFilter"></select>
       <div id="studentLecturesList" class="list"></div>
+        </section>
+      </div>
+
+      <div class="tab-pane fade" id="student-helping-pane" role="tabpanel" aria-labelledby="student-helping-tab" tabindex="0">
+        <section class="card">
+      <h2>Helping Material</h2>
+      <p class="meta">Extra study material shared by your teacher. Open or download any file below.</p>
+      <select id="helpingClassFilter"></select>
+      <div id="studentHelpingList" class="list"></div>
         </section>
       </div>
 
@@ -144,7 +156,7 @@
     <p>Developed by <strong>Muhammad Tahir Mehmood</strong> (MPhil Computer Science) &mdash; Principal, Govt. School Okara | Visiting Lecturer, Punjab College Okara</p>
   </footer>
 
-  <script type="module" src="./js/student.js"></script>
+  <script type="module" src="./js/student.js?v=20260901-1"></script>
   <script src="./js/pwa.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 </body>

@@ -23,6 +23,14 @@ service firebase.storage {
       allow delete: if isTeacher() && request.auth.uid == teacherId;
     }
 
+    match /teachers/{teacherId}/classes/{classId}/helping/{allPaths=**} {
+      allow read: if true;
+      allow create, update: if isTeacher()
+        && request.auth.uid == teacherId
+        && request.resource.size <= 15 * 1024 * 1024;
+      allow delete: if isTeacher() && request.auth.uid == teacherId;
+    }
+
     match /assignments/{assignmentId}/{allPaths=**} {
       allow read: if true;
       allow write: if true;

@@ -46,9 +46,12 @@ const state = {
   assignmentNumberFilter: "",
   evaluationClassFilter: "",
   lastEnrollCredentials: [],
+  helpingMaterials: [],
 };
 
 const MAX_LECTURE_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_HELPING_FILE_BYTES = 15 * 1024 * 1024;
+const HELPING_FILE_HINT = "Any file type is allowed. Maximum 15MB per file.";
 const SMALL_LECTURE_FILE_BYTES = 256 * 1024;
 const MEDIUM_LECTURE_FILE_BYTES = 1024 * 1024;
 
@@ -227,6 +230,28 @@ function updateLectureFileSummary() {
     return;
   }
   const oversized = files.filter((file) => file.size > MAX_LECTURE_FILE_BYTES);
+  summary.textContent = files.map((file) => `${file.name} (${formatFileSize(file.size)})`).join(" • ");
+  summary.classList.toggle("bad", oversized.length > 0);
+}
+
+function setHelpingUploadMsg(text, tone = "") {
+  const el = qs("#helpingUploadMsg");
+  if (!el) return;
+  el.textContent = text;
+  el.classList.toggle("ok", tone === "ok");
+  el.classList.toggle("bad", tone === "danger");
+}
+
+function updateHelpingFileSummary() {
+  const files = Array.from(qs("#helpingFiles")?.files || []);
+  const summary = qs("#helpingFileSummary");
+  if (!summary) return;
+  if (!files.length) {
+    summary.textContent = HELPING_FILE_HINT;
+    summary.classList.remove("bad");
+    return;
+  }
+  const oversized = files.filter((file) => file.size > MAX_HELPING_FILE_BYTES);
   summary.textContent = files.map((file) => `${file.name} (${formatFileSize(file.size)})`).join(" • ");
   summary.classList.toggle("bad", oversized.length > 0);
 }
@@ -573,7 +598,7 @@ function fillClassSelects() {
   const html = ['<option value="">Select class</option>']
     .concat(state.classes.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}${c.subject ? ` - ${escapeHtml(c.subject)}` : ""} (${escapeHtml(c.semester)})</option>`))
     .join("");
-  ["#enrollClassId", "#lectureClassId", "#quizClassId", "#assignmentClassId", "#announcementClassId", "#quizPreviewClass"].forEach((s) => {
+  ["#enrollClassId", "#lectureClassId", "#helpingClassId", "#quizClassId", "#assignmentClassId", "#announcementClassId", "#quizPreviewClass"].forEach((s) => {
     const el = qs(s);
     if (el) el.innerHTML = html;
   });
@@ -587,9 +612,10 @@ function fillClassSelects() {
 }
 
 async function refreshData() {
-  const [classSnap, lectureSnap, quizSnap, draftSnap, assignmentSnap, evalSnap, threadSnap] = await Promise.all([
+  const [classSnap, lectureSnap, helpingSnap, quizSnap, draftSnap, assignmentSnap, evalSnap, threadSnap] = await Promise.all([
     getDocs(query(collection(db, "classes"), where("teacherId", "==", state.me.uid))),
     getDocs(query(collection(db, "lectures"), where("teacherId", "==", state.me.uid))),
+    getDocs(query(collection(db, "helpingMaterials"), where("teacherId", "==", state.me.uid))),
     getDocs(query(collection(db, "quizzes"), where("teacherId", "==", state.me.uid))),
     getDocs(query(collection(db, "quizDrafts"), where("teacherId", "==", state.me.uid))),
     getDocs(query(collection(db, "assignments"), where("teacherId", "==", state.me.uid))),
@@ -601,6 +627,7 @@ async function refreshData() {
   state.lectures = withLectureSequence(lectureSnap.docs.map((d) => ({ id: d.id, ...d.data() })))
     .sort((a, b) => classNameById(a.classId).localeCompare(classNameById(b.classId))
       || Number(a.displayLectureNumber || 0) - Number(b.displayLectureNumber || 0));
+  state.helpingMaterials = helpingSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort(sortHelpingMaterials);
   state.quizzes = quizSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.quizNumber || 0) - (b.quizNumber || 0));
   state.quizDrafts = draftSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
   state.assignments = assignmentSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.assignmentNumber || 0) - (b.assignmentNumber || 0));
@@ -610,6 +637,7 @@ async function refreshData() {
   fillClassSelects();
   renderClasses();
   renderLectures();
+  renderHelpingMaterials();
   renderQuizDrafts();
   renderQuizzes();
   renderQuizPreview();
@@ -618,6 +646,7 @@ async function refreshData() {
   await renderQuizAttemptReviews();
   await renderQuizAnalytics();
   renderAnnouncements();
+  wireHelpingEvents();
   wireDynamicEvents();
 }
 
@@ -684,6 +713,88 @@ async function refreshLecturesOnly() {
       || Number(a.displayLectureNumber || 0) - Number(b.displayLectureNumber || 0));
   renderLectures();
   wireLectureEvents();
+}
+
+function sortHelpingMaterials(a, b) {
+  return classNameById(a.classId).localeCompare(classNameById(b.classId))
+    || (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)
+    || String(a.title || "").localeCompare(String(b.title || ""));
+}
+
+function renderHelpingMaterials() {
+  const container = qs("#helpingList");
+  if (!container) return;
+  container.innerHTML = state.helpingMaterials
+    .map((m) => {
+      const klass = state.classes.find((c) => c.id === m.classId);
+      const files = (m.files || []).map((f) => `<li>
+        <a href="${escapeHtml(fileHref(f))}" target="_blank" rel="noopener">${escapeHtml(f.name)}</a>
+        <span class="meta">${escapeHtml(formatFileSize(f.size))}</span>
+      </li>`).join("");
+      return `<article class="item">
+        <h4>${escapeHtml(m.title || "Untitled material")}</h4>
+        <p class="meta">${escapeHtml(klass?.name || m.classId)}${m.category ? ` | ${escapeHtml(m.category)}` : ""} | ${fmtDate(m.updatedAt || m.createdAt)}</p>
+        ${m.description ? `<p>${escapeHtml(m.description)}</p>` : ""}
+        ${files ? `<ul class="lecture-file-list">${files}</ul>` : "<p>No files</p>"}
+        <p>${m.link ? `<a href="${escapeHtml(m.link)}" target="_blank" rel="noopener">Reference Link</a>` : "No reference link"}</p>
+        <div class="inline-actions">
+          <button data-edit-helping="${m.id}" type="button">Edit</button>
+          <button data-del-helping="${m.id}" type="button">Delete</button>
+        </div>
+      </article>`;
+    })
+    .join("") || "<p>No helping material yet.</p>";
+}
+
+async function refreshHelpingOnly() {
+  const helpingSnap = await getDocs(query(collection(db, "helpingMaterials"), where("teacherId", "==", state.me.uid)));
+  state.helpingMaterials = helpingSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort(sortHelpingMaterials);
+  renderHelpingMaterials();
+  wireHelpingEvents();
+}
+
+function resetHelpingForm() {
+  qs("#helpingForm")?.reset();
+  qs("#helpingId").value = "";
+  qs("#uploadHelpingBtn").textContent = "Upload Helping Material";
+  updateHelpingFileSummary();
+}
+
+function wireHelpingEvents() {
+  qsa("[data-edit-helping]").forEach((btn) => {
+    if (btn.dataset.helpingEventBound === "true") return;
+    btn.dataset.helpingEventBound = "true";
+    btn.addEventListener("click", () => {
+      const row = state.helpingMaterials.find((x) => x.id === btn.dataset.editHelping);
+      if (!row) return;
+      qs("#helpingId").value = row.id;
+      qs("#helpingClassId").value = row.classId;
+      qs("#helpingTitle").value = row.title || "";
+      qs("#helpingCategory").value = row.category || "";
+      qs("#helpingLink").value = row.link || "";
+      qs("#helpingDescription").value = row.description || "";
+      qs("#uploadHelpingBtn").textContent = "Update Helping Material";
+      setHelpingUploadMsg(`Editing "${row.title || "material"}". Choose additional files only if needed.`);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  });
+
+  qsa("[data-del-helping]").forEach((btn) => {
+    if (btn.dataset.helpingEventBound === "true") return;
+    btn.dataset.helpingEventBound = "true";
+    btn.addEventListener("click", async () => {
+      const row = state.helpingMaterials.find((x) => x.id === btn.dataset.delHelping);
+      if (!row) return;
+      if (!confirm("Delete this helping material?")) return;
+      for (const f of row.files || []) {
+        if (f.path) await deleteObject(ref(storage, f.path)).catch(() => {});
+        if (f.fileId) await deleteFirestorePayload(f.fileId).catch(() => {});
+      }
+      await deleteDoc(doc(db, "helpingMaterials", row.id));
+      if (qs("#helpingId").value === row.id) resetHelpingForm();
+      await refreshHelpingOnly();
+    });
+  });
 }
 
 function renderQuestionBuilder() {
@@ -1533,6 +1644,7 @@ function wireStaticEvents() {
   });
   qs("#downloadEnrollCredentialsBtn")?.addEventListener("click", downloadEnrollCredentialsCsv);
   qs("#lectureFiles")?.addEventListener("change", updateLectureFileSummary);
+  qs("#helpingFiles")?.addEventListener("change", updateHelpingFileSummary);
 
   qs("#classForm").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -1753,6 +1865,123 @@ function wireStaticEvents() {
     } finally {
       uploadBtn.disabled = false;
       if (uploadBtn.textContent.startsWith("Uploading")) uploadBtn.textContent = originalButtonText;
+    }
+  });
+
+  qs("#helpingForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const helpingId = qs("#helpingId").value;
+    const classId = qs("#helpingClassId").value;
+    const title = qs("#helpingTitle").value.trim();
+    const category = qs("#helpingCategory").value.trim();
+    const link = qs("#helpingLink").value.trim();
+    const description = qs("#helpingDescription").value.trim();
+    const files = Array.from(qs("#helpingFiles").files || []);
+    const uploadBtn = qs("#uploadHelpingBtn");
+    const uploaded = [];
+    let materialSaved = false;
+
+    if (!classId || !title) {
+      setHelpingUploadMsg("Select a class and enter the material title.", "danger");
+      return;
+    }
+    const oversized = files.find((file) => file.size > MAX_HELPING_FILE_BYTES);
+    if (oversized) {
+      setHelpingUploadMsg(`${oversized.name} is ${formatFileSize(oversized.size)}. Maximum size is 15MB per file.`, "danger");
+      return;
+    }
+    const previous = helpingId ? state.helpingMaterials.find((row) => row.id === helpingId) : null;
+    if (!files.length && !link && !(previous?.files || []).length) {
+      setHelpingUploadMsg("Attach at least one file or provide a reference link.", "danger");
+      return;
+    }
+
+    const originalButtonText = uploadBtn.textContent;
+    uploadBtn.disabled = true;
+    try {
+      for (let index = 0; index < files.length; index += 1) {
+        const file = files[index];
+        uploadBtn.textContent = `Uploading ${index + 1}/${files.length}...`;
+        setHelpingUploadMsg(`Uploading ${file.name} (${formatFileSize(file.size)})...`);
+        let storageError = null;
+        let storageRef = null;
+        try {
+          const token = `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+          storageRef = ref(storage, `teachers/${state.me.uid}/classes/${classId}/helping/${token}_${safeStorageFileName(file.name)}`);
+          await uploadLectureFileToStorage(storageRef, file, (percent) => {
+            uploadBtn.textContent = `Uploading ${index + 1}/${files.length} (${percent}%)`;
+            setHelpingUploadMsg(`Uploading ${file.name}: ${percent}%`);
+          });
+          const url = await promiseWithTimeout(
+            getDownloadURL(storageRef),
+            Math.min(15000, lectureUploadIdleTimeout(file)),
+            "Download URL request"
+          );
+          uploaded.push({ name: file.name, url, path: storageRef.fullPath, type: file.type || "application/octet-stream", size: file.size, source: "storage" });
+        } catch (error) {
+          storageError = error;
+          if (storageRef) await deleteObject(storageRef).catch(() => {});
+          setHelpingUploadMsg(`${file.name}: Firebase Storage was unavailable; trying the secure backup upload...`);
+          try {
+            const firestoreFile = await uploadFileToFirestore(file, {
+              module: "helpingMaterial",
+              teacherId: state.me.uid,
+              classId,
+            });
+            uploaded.push(firestoreFile);
+          } catch (fallbackError) {
+            throw new Error(`Could not upload ${file.name}. Storage: ${uploadErrorText(storageError)} Backup: ${uploadErrorText(fallbackError)}`);
+          }
+        }
+      }
+
+      uploadBtn.textContent = helpingId ? "Updating material..." : "Saving material...";
+      setHelpingUploadMsg(`${helpingId ? "Updating" : "Saving"} helping material...`);
+      if (helpingId) {
+        await updateDoc(doc(db, "helpingMaterials", helpingId), {
+          classId,
+          title,
+          category,
+          description,
+          link,
+          files: [...(previous?.files || []), ...uploaded],
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        await addDoc(collection(db, "helpingMaterials"), {
+          teacherId: state.me.uid,
+          classId,
+          title,
+          category,
+          description,
+          link,
+          files: uploaded,
+          createdAt: serverTimestamp(),
+        });
+      }
+      materialSaved = true;
+
+      resetHelpingForm();
+      setHelpingUploadMsg("Refreshing helping material list...");
+      await refreshHelpingOnly();
+      setHelpingUploadMsg(`Helping material ${helpingId ? "updated" : "uploaded"} successfully${uploaded.length ? ` with ${uploaded.length} file(s)` : ""}.`, "ok");
+    } catch (error) {
+      if (!materialSaved) {
+        for (const file of uploaded) {
+          if (file.path) await deleteObject(ref(storage, file.path)).catch(() => {});
+          if (file.fileId) await deleteFirestorePayload(file.fileId).catch(() => {});
+        }
+      }
+      console.error("Helping material upload failed:", error);
+      setHelpingUploadMsg(
+        materialSaved
+          ? `Helping material saved, but the list could not refresh: ${uploadErrorText(error)}`
+          : uploadErrorText(error),
+        "danger"
+      );
+    } finally {
+      uploadBtn.disabled = false;
+      if (!materialSaved) uploadBtn.textContent = originalButtonText;
     }
   });
 

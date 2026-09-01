@@ -121,6 +121,13 @@ Supported roll header names: `rollNo`, `roll_no`, `roll`, `roll number`.
 - teacherId, classId, title, date, videoLink
 - files: array of `{name, url?, path?, fileId?, type, size}`
 
+### `helpingMaterials/{materialId}`
+- teacherId, classId, title
+- category, description, link (all optional)
+- files: array of `{name, url?, path?, fileId?, type, size}`
+- createdAt, updatedAt
+- Any file type is accepted, maximum 15MB per file
+
 ### `quizzes/{quizId}`
 - teacherId, classId, quizNumber (1-4), title, durationMin
 - status: `draft | published`
@@ -148,6 +155,7 @@ Supported roll header names: `rollNo`, `roll_no`, `roll`, `roll number`.
 
 ### `filePayloads/{fileId}`
 - fileId, name, type, size, chunkCount, context, createdAt
+- `context.module` is `"lecture"` or `"helpingMaterial"` for teacher uploads
 - subcollection `chunks/{chunkId}`: `{idx, data}` (Data URL chunks)
 
 ### `discussionThreads/{threadId}`
@@ -194,6 +202,7 @@ Supported roll header names: `rollNo`, `roll_no`, `roll`, `roll number`.
   - Create classes and semester
   - CSV enrollment
   - Lectures CRUD + file uploads + video link
+  - Helping Material CRUD: any file type, up to 15MB per file, per class
   - Quizzes draft autosave/resume, publish, archive, manual start/stop, attempt limits
   - Quiz questions support MCQ + theory, per-question image compression, formatting/code/LaTeX tags, CSV bulk import
   - Assignments 1-4 + review submissions
@@ -202,6 +211,7 @@ Supported roll header names: `rollNo`, `roll_no`, `roll`, `roll number`.
 - Student:
   - Login roll+name
   - View lectures
+  - View / download Helping Material shared by the teacher
   - Attempt published quizzes with timer + forward/back + auto-grade + result view
   - Upload assignments (<=10MB)
   - Forum thread/reply with pagination (20 per page)

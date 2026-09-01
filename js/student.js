@@ -67,6 +67,7 @@ function classOptions(withAll = false) {
 
 function fillSelectors() {
   qs("#lectureClassFilter").innerHTML = classOptions(true);
+  qs("#helpingClassFilter").innerHTML = classOptions(true);
   qs("#quizClassFilter").innerHTML = classOptions(true);
   qs("#assignmentClassFilter").innerHTML = classOptions(true);
   qs("#threadClassId").innerHTML = classOptions(false);
@@ -104,6 +105,35 @@ async function loadLectures() {
       </article>`;
     })
     .join("") || "<p>No lectures available.</p>";
+}
+
+async function loadHelpingMaterials() {
+  const container = qs("#studentHelpingList");
+  if (!container) return;
+  const classId = qs("#helpingClassFilter").value;
+  const classes = classId ? [classId] : state.classes.map((c) => c.id);
+  const rows = [];
+  for (const id of classes) {
+    const snap = await getDocs(query(collection(db, "helpingMaterials"), where("classId", "==", id)));
+    rows.push(...snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+  }
+  rows.sort((a, b) => (b.updatedAt?.seconds || b.createdAt?.seconds || 0) - (a.updatedAt?.seconds || a.createdAt?.seconds || 0));
+  container.innerHTML = rows
+    .map((m) => {
+      const className = state.classes.find((c) => c.id === m.classId)?.name || m.classId;
+      const files = (m.files || []).map((f) => `<li>
+        <a href="${escapeHtml(fileHref(f))}" target="_blank" rel="noopener">${escapeHtml(f.name)}</a>
+        <span class="meta">${escapeHtml(formatFileSize(f.size))}</span>
+      </li>`).join("");
+      return `<article class="item">
+        <h4>${escapeHtml(m.title || "Untitled material")}</h4>
+        <p class="meta">${escapeHtml(className)}${m.category ? ` | ${escapeHtml(m.category)}` : ""} | ${fmtDate(m.updatedAt || m.createdAt)}</p>
+        ${m.description ? `<p>${escapeHtml(m.description)}</p>` : ""}
+        ${files ? `<ul class="lecture-file-list">${files}</ul>` : "<p>No files</p>"}
+        ${m.link ? `<p><a href="${escapeHtml(m.link)}" target="_blank" rel="noopener">Reference Link</a></p>` : ""}
+      </article>`;
+    })
+    .join("") || "<p>No helping material available.</p>";
 }
 
 function renderResultView(quiz, attempt) {
@@ -940,12 +970,14 @@ async function boot() {
   renderMyClasses();
   buildEvaluationForm();
   await loadLectures();
+  await loadHelpingMaterials();
   await loadQuizzesAndAttempts();
   await loadAssignments();
   await loadThreads();
   await loadGamification();
 
   qs("#lectureClassFilter").addEventListener("change", loadLectures);
+  qs("#helpingClassFilter").addEventListener("change", loadHelpingMaterials);
   qs("#quizClassFilter").addEventListener("change", renderQuizzesList);
   qs("#assignmentClassFilter").addEventListener("change", renderAssignments);
   qs("#threadClassId").addEventListener("change", async () => {

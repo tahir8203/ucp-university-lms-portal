@@ -34,6 +34,9 @@
           <button class="nav-link" id="teacher-lectures-tab" data-bs-toggle="tab" data-bs-target="#teacher-lectures-pane" type="button" role="tab" aria-controls="teacher-lectures-pane" aria-selected="false">Lectures Delivered</button>
         </li>
         <li class="nav-item" role="presentation">
+          <button class="nav-link" id="teacher-helping-tab" data-bs-toggle="tab" data-bs-target="#teacher-helping-pane" type="button" role="tab" aria-controls="teacher-helping-pane" aria-selected="false">Helping Material</button>
+        </li>
+        <li class="nav-item" role="presentation">
           <button class="nav-link" id="teacher-quizzes-tab" data-bs-toggle="tab" data-bs-target="#teacher-quizzes-pane" type="button" role="tab" aria-controls="teacher-quizzes-pane" aria-selected="false">Quizzes & Analytics</button>
         </li>
         <li class="nav-item" role="presentation">
@@ -97,6 +100,29 @@
       </form>
       <input id="lectureId" type="hidden" />
       <div id="lecturesList" class="list"></div>
+        </section>
+      </div>
+
+      <div class="tab-pane fade" id="teacher-helping-pane" role="tabpanel" aria-labelledby="teacher-helping-tab" tabindex="0">
+        <section class="card">
+      <h2>Helping Material</h2>
+      <p class="meta">Share supporting material with a class (notes, books, slides, audio, video, code, archives). Any file type is allowed, maximum 15MB per file.</p>
+      <form id="helpingForm" class="grid two">
+        <select id="helpingClassId" required></select>
+        <input id="helpingTitle" placeholder="Material title" required />
+        <input id="helpingCategory" placeholder="Category (optional, e.g., Notes, Book, Slides)" />
+        <input id="helpingLink" placeholder="Optional reference link" />
+        <textarea id="helpingDescription" placeholder="Short description (optional)"></textarea>
+        <div class="lecture-file-field">
+          <label for="helpingFiles">Helping material file(s)</label>
+          <input id="helpingFiles" type="file" multiple aria-describedby="helpingFileSummary" />
+          <p id="helpingFileSummary" class="meta">Any file type is allowed. Maximum 15MB per file.</p>
+        </div>
+        <button id="uploadHelpingBtn" type="submit">Upload Helping Material</button>
+        <p id="helpingUploadMsg" class="message lecture-upload-message" role="status" aria-live="polite"></p>
+      </form>
+      <input id="helpingId" type="hidden" />
+      <div id="helpingList" class="list"></div>
         </section>
       </div>
 
@@ -297,7 +323,7 @@
     <p>Developed by <strong>Muhammad Tahir Mehmood</strong> (MPhil Computer Science) &mdash; Principal, Govt. School Okara | Visiting Lecturer, Punjab College Okara</p>
   </footer>
 
-  <script type="module" src="./js/teacher.js?v=20260830-2"></script>
+  <script type="module" src="./js/teacher.js?v=20260901-1"></script>
   <script src="./js/pwa.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 </body>
