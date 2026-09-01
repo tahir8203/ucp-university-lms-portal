@@ -113,9 +113,15 @@ async function loadHelpingMaterials() {
   const classId = qs("#helpingClassFilter").value;
   const classes = classId ? [classId] : state.classes.map((c) => c.id);
   const rows = [];
-  for (const id of classes) {
-    const snap = await getDocs(query(collection(db, "helpingMaterials"), where("classId", "==", id)));
-    rows.push(...snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+  try {
+    for (const id of classes) {
+      const snap = await getDocs(query(collection(db, "helpingMaterials"), where("classId", "==", id)));
+      rows.push(...snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    }
+  } catch (error) {
+    console.warn("Helping material list could not be loaded:", error);
+    container.innerHTML = "<p>Helping material is not available right now.</p>";
+    return;
   }
   rows.sort((a, b) => (b.updatedAt?.seconds || b.createdAt?.seconds || 0) - (a.updatedAt?.seconds || a.createdAt?.seconds || 0));
   container.innerHTML = rows

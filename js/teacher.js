@@ -47,6 +47,7 @@ const state = {
   evaluationClassFilter: "",
   lastEnrollCredentials: [],
   helpingMaterials: [],
+  helpingLoadError: "",
 };
 
 const MAX_LECTURE_FILE_BYTES = 10 * 1024 * 1024;
@@ -612,10 +613,9 @@ function fillClassSelects() {
 }
 
 async function refreshData() {
-  const [classSnap, lectureSnap, helpingSnap, quizSnap, draftSnap, assignmentSnap, evalSnap, threadSnap] = await Promise.all([
+  const [classSnap, lectureSnap, quizSnap, draftSnap, assignmentSnap, evalSnap, threadSnap] = await Promise.all([
     getDocs(query(collection(db, "classes"), where("teacherId", "==", state.me.uid))),
     getDocs(query(collection(db, "lectures"), where("teacherId", "==", state.me.uid))),
-    getDocs(query(collection(db, "helpingMaterials"), where("teacherId", "==", state.me.uid))),
     getDocs(query(collection(db, "quizzes"), where("teacherId", "==", state.me.uid))),
     getDocs(query(collection(db, "quizDrafts"), where("teacherId", "==", state.me.uid))),
     getDocs(query(collection(db, "assignments"), where("teacherId", "==", state.me.uid))),
@@ -627,12 +627,13 @@ async function refreshData() {
   state.lectures = withLectureSequence(lectureSnap.docs.map((d) => ({ id: d.id, ...d.data() })))
     .sort((a, b) => classNameById(a.classId).localeCompare(classNameById(b.classId))
       || Number(a.displayLectureNumber || 0) - Number(b.displayLectureNumber || 0));
-  state.helpingMaterials = helpingSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort(sortHelpingMaterials);
   state.quizzes = quizSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.quizNumber || 0) - (b.quizNumber || 0));
   state.quizDrafts = draftSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
   state.assignments = assignmentSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.assignmentNumber || 0) - (b.assignmentNumber || 0));
   state.evalStats = evalSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
   state.announcements = threadSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+  await loadHelpingMaterials();
 
   fillClassSelects();
   renderClasses();
@@ -715,6 +716,18 @@ async function refreshLecturesOnly() {
   wireLectureEvents();
 }
 
+async function loadHelpingMaterials() {
+  try {
+    const snap = await getDocs(query(collection(db, "helpingMaterials"), where("teacherId", "==", state.me.uid)));
+    state.helpingMaterials = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort(sortHelpingMaterials);
+    state.helpingLoadError = "";
+  } catch (error) {
+    state.helpingMaterials = [];
+    state.helpingLoadError = uploadErrorText(error);
+    console.warn("Helping material list could not be loaded:", error);
+  }
+}
+
 function sortHelpingMaterials(a, b) {
   return classNameById(a.classId).localeCompare(classNameById(b.classId))
     || (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)
@@ -743,12 +756,13 @@ function renderHelpingMaterials() {
         </div>
       </article>`;
     })
-    .join("") || "<p>No helping material yet.</p>";
+    .join("") || (state.helpingLoadError
+      ? `<p class="message bad">Helping material could not be loaded: ${escapeHtml(state.helpingLoadError)}<br />Deploy the updated <code>firestore.rules</code> to enable this tab.</p>`
+      : "<p>No helping material yet.</p>");
 }
 
 async function refreshHelpingOnly() {
-  const helpingSnap = await getDocs(query(collection(db, "helpingMaterials"), where("teacherId", "==", state.me.uid)));
-  state.helpingMaterials = helpingSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort(sortHelpingMaterials);
+  await loadHelpingMaterials();
   renderHelpingMaterials();
   wireHelpingEvents();
 }
